@@ -412,20 +412,33 @@ zzm completion fish      # Fish 补全
 - [Zig 语言圣经](https://course.ziglang.cc/)
 - [ZLS GitHub 仓库](https://github.com/zigtools/zls)
 - [zigup - Zig 版本管理器](https://github.com/marler8997/zigup)
-- [zvm - Zig Version Manager](https://github.com/hendriknielaender/zvm)
+- [zvm (tristanisham) - Zig Version Manager](https://github.com/tristanisham/zvm)
+- [zvm (hendriknielaender) - Fast Zig Version Manager](https://github.com/hendriknielaender/zvm)
+- [竞品详细对比分析](./comparison.md)
 
 ### B. 竞品对比
 
-| 特性 | zigup | zvm (hendriknielaender) | **zig-zls-manager (本项目)** |
-|-----|-------|------------------------|---------------------------|
-| Zig 版本管理 | ✅ | ✅ | ✅ |
-| ZLS 版本管理 | ❌ | ⚠️ 附属功能 | ✅ **独立完整支持** |
-| 版本兼容性检查 | ❌ | ⚠️ 基础 | ✅ **智能矩阵** |
-| 项目级配置 | ❌ | ✅ | ✅ |
-| IDE 集成 | ❌ | ⚠️ 手动 | ✅ **自动生成** |
-| 跨平台 | ✅ | ✅ | ✅ |
-| Rust 实现 | ❌ (Zig) | ❌ (Go) | ✅ |
-| 单二进制 | ✅ | ✅ | ✅ |
+详细对比请参见 [comparison.md](./comparison.md)。以下是核心差异总结：
+
+| 特性 | zigup | zvm (tristanisham) | zvm (hendriknielaender) | **zig-zls-manager (本项目)** |
+|-----|-------|-------------------|------------------------|---------------------------|
+| Zig 版本管理 | ✅ | ✅ | ✅ | ✅ |
+| ZLS 独立管理 | ❌ | ❌ | ❌ | ✅ **完整支持** |
+| ZLS 安装（附属） | ❌ | ✅ `--zls` | ✅ `--zls` | ✅ `--with-zls` |
+| 版本兼容性检查 | ❌ | ⚠️ 基础映射 | ⚠️ 基础映射 | ✅ **智能矩阵 + 警告** |
+| 项目级配置 (.zzmrc) | ❌ | ❌ | ❌ | ✅ **完整支持** |
+| IDE 集成自动化 | ❌ | ❌ | ❌ | ✅ **VS Code/Neovim/Helix** |
+| 自动版本检测 | ❌ | ❌ | ✅ build.zig.zon | ✅ .zzmrc + build.zig.zon |
+| 实现语言 | Zig | Go | Zig | **Rust** |
+| 维护状态 | ⚠️ 停止维护 | ✅ 活跃 | ✅ 活跃 | ✅ **活跃开发** |
+
+**核心差异化优势**:
+
+1. **ZLS 作为一等公民**: 提供独立的 ZLS 管理子命令（`zzm zls install/use/list`），而非附属功能
+2. **智能兼容性矩阵**: 自动检测 Zig/ZLS 版本不匹配并发出警告，提供一键同步（`zzm sync`）
+3. **项目级配置**: `.zzmrc` 文件锁定项目所需的 Zig + ZLS 版本组合，支持 `zzm restore` 一键还原
+4. **IDE 集成自动化**: 自动生成 VS Code、Neovim、Helix 等编辑器配置，无需手动设置路径
+5. **Rust 实现**: 更好的性能、内存安全和跨平台一致性
 
 ### C. 版本历史
 
