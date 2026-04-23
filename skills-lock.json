@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "rust-skills": {
+      "source": "morning-start/book-skills",
+      "sourceType": "github",
+      "computedHash": "9b09b78a4d2d1b6264efb1df72538d957e2c410ea45115bb3720f3d6180718cd"
+    }
+  }
+}
