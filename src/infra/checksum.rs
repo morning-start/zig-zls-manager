@@ -1,5 +1,7 @@
 use sha2::{Digest, Sha256};
 
+use crate::utils::error::ZzmError;
+
 pub fn calculate_sha256(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
@@ -7,7 +9,7 @@ pub fn calculate_sha256(data: &[u8]) -> String {
     hex::encode(result)
 }
 
-pub fn verify_checksum(data: &[u8], expected: &str) -> Result<bool, crate::utils::ZzmError> {
+pub fn verify_checksum(data: &[u8], expected: &str) -> Result<bool, ZzmError> {
     let actual = calculate_sha256(data);
     Ok(actual.to_lowercase() == expected.to_lowercase())
 }
