@@ -4,6 +4,8 @@ use crate::utils::error::ZzmError;
 
 /// 平台抽象 trait，封装平台特定操作
 pub trait PlatformTrait: Send + Sync {
+    /// 克隆为 Box<dyn PlatformTrait>
+    fn clone_box(&self) -> Box<dyn PlatformTrait>;
     /// 获取平台名称
     fn name(&self) -> &'static str;
 

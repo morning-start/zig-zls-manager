@@ -8,6 +8,10 @@ pub struct LinuxPlatform;
 
 #[cfg(target_os = "linux")]
 impl PlatformTrait for LinuxPlatform {
+    fn clone_box(&self) -> Box<dyn PlatformTrait> {
+        Box::new(LinuxPlatform)
+    }
+
     fn name(&self) -> &'static str {
         "linux"
     }
@@ -65,6 +69,10 @@ impl PlatformTrait for LinuxPlatform {
 
 #[cfg(not(target_os = "linux"))]
 impl PlatformTrait for LinuxPlatform {
+    fn clone_box(&self) -> Box<dyn PlatformTrait> {
+        Box::new(LinuxPlatform)
+    }
+
     fn name(&self) -> &'static str { "linux" }
     fn default_install_dir(&self) -> PathBuf { PathBuf::from("/.zzm") }
     fn create_symlink(&self, _original: &Path, _link: &Path) -> Result<(), ZzmError> {

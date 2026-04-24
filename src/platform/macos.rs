@@ -8,6 +8,10 @@ pub struct MacOSPlatform;
 
 #[cfg(target_os = "macos")]
 impl PlatformTrait for MacOSPlatform {
+    fn clone_box(&self) -> Box<dyn PlatformTrait> {
+        Box::new(MacOSPlatform)
+    }
+
     fn name(&self) -> &'static str {
         "macos"
     }
@@ -61,6 +65,10 @@ impl PlatformTrait for MacOSPlatform {
 
 #[cfg(not(target_os = "macos"))]
 impl PlatformTrait for MacOSPlatform {
+    fn clone_box(&self) -> Box<dyn PlatformTrait> {
+        Box::new(MacOSPlatform)
+    }
+
     fn name(&self) -> &'static str { "macos" }
     fn default_install_dir(&self) -> PathBuf { PathBuf::from("/.zzm") }
     fn create_symlink(&self, _original: &Path, _link: &Path) -> Result<(), ZzmError> {

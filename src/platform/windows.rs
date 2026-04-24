@@ -7,6 +7,10 @@ use crate::utils::error::ZzmError;
 pub struct WindowsPlatform;
 
 impl PlatformTrait for WindowsPlatform {
+    fn clone_box(&self) -> Box<dyn PlatformTrait> {
+        Box::new(WindowsPlatform)
+    }
+
     fn name(&self) -> &'static str {
         "windows"
     }
