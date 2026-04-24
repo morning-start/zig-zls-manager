@@ -1,6 +1,97 @@
 [package]
-name = "zig-zls-manager"
+name = "zzm"
 version = "0.1.0"
 edition = "2024"
+authors = ["zig-zls-manager team"]
+description = "Zig/ZLS Version Manager - 专业级的 Zig + ZLS 联合版本管理 CLI 工具"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/user/zig-zls-manager"
+keywords = ["zig", "zls", "version-manager", "cli", "lsp"]
+categories = ["development-tools", "command-line-utilities"]
+readme = "README.md"
+
+[[bin]]
+name = "zzm"
+path = "src/main.rs"
 
 [dependencies]
+# CLI 框架
+clap = { version = "4", features = ["derive"] }
+clap-complete = "4"
+
+# 异步运行时
+tokio = { version = "1", features = ["full"] }
+
+# HTTP 客户端
+reqwest = { version = "0.12", features = ["json", "stream"] }
+
+# 序列化/反序列化
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# TOML 配置解析
+toml = "0.8"
+
+# 错误处理
+anyhow = "1"
+thiserror = "2"
+
+# 日志系统
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# 终端输出
+console = "0.15"
+
+# 表格输出
+tabled = "0.16"
+
+# 进度条
+indicatif = "0.17"
+
+# 交互式输入
+dialoguer = "0.11"
+
+# 版本处理
+semver = "1"
+
+# SHA256 校验和
+sha2 = "0.10"
+hex = "0.4"
+
+# 压缩解压
+flate2 = "1"
+tar = "0.4"
+zip = "2"
+
+# 系统目录
+dirs = "6"
+
+# 日期时间
+chrono = { version = "0.4", features = ["serde"] }
+
+# 正则表达式
+regex = "1"
+
+# URL 解析
+url = "2"
+
+# 异步工具
+futures-util = "0.3"
+
+[dev-dependencies]
+# 测试工具
+tempfile = "3"
+assert_cmd = "2"
+predicates = "3"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.dev]
+opt-level = 0
+debug = true

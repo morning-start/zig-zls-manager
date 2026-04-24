@@ -1,0 +1,8 @@
+{
+    "files.exclude": {
+        ".codebuddy": true,
+        ".joycode": true,
+        ".claude": true,
+        ".trae": true
+    }
+}
