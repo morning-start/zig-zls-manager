@@ -4,7 +4,7 @@
 
 - **版本**: v1.0.0
 - **创建日期**: 2026-04-24
-- **当前阶段**: Phase 1 - MVP (v0.1.0) — Sprint 0-3 已完成，进入 Sprint 4
+- **当前阶段**: Phase 1 - MVP (v0.1.0) — Sprint 0-4 已完成，进入 Sprint 5
 - **关联文档**: [ROADMAP.md](./ROADMAP.md), [architecture.md](./architecture.md)
 
 ---
@@ -257,40 +257,38 @@
   - 安装 Zig 后自动调用 ZlsManager::install_compatible
   - 统一进度显示和错误处理
 
-- [ ] **[P0] T-020: 实现 VS Code IDE 集成**
-  文件: `src/core/ide/vscode.rs`
-  - 生成 `.vscode/settings.json`
-    ```json
-    {
-      "zig.path": "<path_to_zig>",
-      "zig.zls.path": "<path_to_zls>",
-      "[zig]": {
-        "editor.defaultFormatter": "ziglang.vscode-zig",
-        "editor.formatOnSave": true
-      }
-    }
-    ```
+- [x] **[P0] T-020: 实现 VS Code IDE 集成** ✅ *已完成*
+  文件: `src/core/ide.rs`
+  - 读取/合并 VS Code settings.json（保留其他设置不覆盖）
+  - 自动设置 zig.path 和 zig.zls.path（Windows 下使用正斜杠）
+  - 支持 JSONC 行注释清理
   - 实现 `zzm ide config vscode` 命令
-  - 检测是否已有 .vscode/settings.json（合并而非覆盖）
+  - 实现 `zzm ide check` 检查 IDE 配置状态
+  - 实现 `zzm ide doctor` 诊断 IDE 集成问题
+  - 支持 `ide.vscode_settings_path` 自定义路径
+  - 实现 `zzm ide remove` 移除 VS Code 中的 Zig/ZLS 配置
 
-- [ ] **[P0] T-021: 实现 `zzm ide path` 命令**
+- [x] **[P0] T-021: 实现 `zzm ide path` 命令** ✅ *已完成*
   - 输出当前 zig 和 zls 的绝对路径
-  - 支持 `--json` 格式
-  - 用途：供其他脚本或工具引用
+  - 未安装时显示 (未安装) 提示
+  - 已集成到 IdeManager::zig_binary_path / zls_binary_path
 
-- [ ] **[P1] T-022: 实现基础兼容性检查**
+- [x] **[P1] T-022: 实现基础兼容性检查** ✅ *已完成*
   文件: `src/core/compatibility.rs`
-  - 内置硬编码的兼容性规则（v0.11→zls 0.11, v0.13→zls 0.13 等）
-  - `check(zig_ver, zls_ver)` → CompatibilityStatus enum
-  - 在 `use` 和 `install --with-zls` 时自动调用
-  - 不匹配时输出警告（不阻止操作）
+  - CompatibilityStatus 枚举（Compatible/LikelyCompatible/Incompatible/Unknown）
+  - check(zig_ver, zls_ver) 版本兼容性检查
+  - 主版本号+次版本号匹配规则
+  - master/nightly 版本特殊处理
+  - recommended_zls_version() 推荐搭配
+  - check_and_warn() 警告输出（不阻止操作）
+  - 已集成到 cmd_sync 命令
 
 **验收标准**:
 - ✅ `zzm install 0.13.0 --with-zls` 同时安装两个工具
 - ✅ `zzm zls current` 显示当前 ZLS 版本
-- [ ] `zzm ide config vscode` 生成正确的 settings.json
-- [ ] `zzm ide path` 输出正确的路径
-- [ ] 版本不匹配时有警告提示
+- ✅ `zzm ide config vscode` 生成正确的 settings.json
+- ✅ `zzm ide path` 输出正确的路径
+- ✅ 版本不匹配时有警告提示
 
 ---
 
@@ -300,13 +298,15 @@
 
 #### 任务列表
 
-- [ ] **[P0] T-023: 实现配置管理器**
+- [x] **[P0] T-023: 实现配置管理器** ✅ *已完成*
   文件: `src/core/config.rs`
-  - TOML 配置文件读写
-  - 配置结构体定义（参考 architecture.md 2.2.4 节）
-  - 默认值处理
-  - 多层配置合并（项目 > 用户 > 系统 > 内置）
-  - 实现 `config list/get/set/edit` 命令
+  - ZzmConfig 结构体（default_channel/auto_install_zls/auto_use/mirror_url 等）
+  - IdeConfig 嵌套结构体（vscode_auto_update/vscode_set_zls_path/vscode_settings_path）
+  - ConfigManager：TOML 配置文件读写
+  - load() / save() / get(key) / set(key, value) / list_all() / reset()
+  - 支持点分隔路径（如 ide.vscode_auto_update）
+  - 实现 `config list/get/set/edit` 命令（edit 使用 $EDITOR 环境变量）
+  - 已集成到 cmd_config 命令
 
 - [ ] **[P0] T-024: 补充单元测试**
   目标覆盖率 > 70%
@@ -336,7 +336,7 @@
   - 默认清理 7 天前的过期缓存
 
 **验收标准**:
-- [ ] `zzm config list` 显示所有配置项
+- ✅ `zzm config list` 显示所有配置项
 - [ ] `cargo test` 通过，覆盖率 > 70%
 - [ ] 集成测试覆盖主要用户场景
 - ✅ `zzm info` 输出清晰的环境信息
@@ -426,16 +426,16 @@ T-013 (文件系统) ✅      T-016 (命令集成) ✅ ← T-014 (校验和) ✅
   ↓
 T-017 (缓存管理) ✅ → T-018 (ZLSManager) ✅ → T-019 (--with-zls) ✅
   ↓
-T-020 (VS Code) + T-021 (ide path) + T-022 (兼容性)
+T-020 (VS Code) ✅ + T-021 (ide path) ✅ + T-022 (兼容性) ✅
   ↓
-T-023 (配置) → T-026 (info) ✅ + T-027 (clean) ✅
+T-023 (配置) ✅ → T-026 (info) ✅ + T-027 (clean) ✅
   ↓
 T-024 (单元测试) + T-025 (集成测试)
   ↓
 T-028 (CI/CD) → T-029-T-031 (文档) → T-033 (发布)
 ```
 
-**当前进度**: Sprint 0-3 全部完成，Sprint 4 部分完成（T-018/T-019），Sprint 5 部分完成（T-026/T-027）
+**当前进度**: Sprint 0-4 全部完成，Sprint 5 大部分完成（T-023/T-026/T-027），剩余 T-024/T-025
 
 ---
 
@@ -542,7 +542,7 @@ bugfix/progress-bar-crash
 - [ ] #007: install 原子性保证（任一失败需回滚两者）
 - [ ] #008: ZlsManager::find_and_link_zls_binary 中未使用的 _binary_name 变量
 - [ ] #009: zig_manager::use_version 中 _installed 变量未使用（确认版本是否存在但不读取信息）
-- [ ] #010: 21 个 dead code 警告（空壳模块：compatibility/config/ide/project，将在后续 Sprint 消除）
+- [ ] #010: dead code 警告（project.rs 空壳模块，将在后续 Sprint 消除）
 
 ---
 
@@ -561,6 +561,7 @@ bugfix/progress-bar-crash
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
+| 2026-04-25 | v1.2.0 | 更新 Sprint 0-4 全部完成，Sprint 5 大部分完成（T-020~T-023），剩余 T-024/T-025 |
 | 2026-04-25 | v1.1.0 | 更新 Sprint 0-3 全部完成，Sprint 4 部分完成（T-018/T-019），Sprint 5 部分完成（T-026/T-027） |
 | 2026-04-24 | v1.0.0 | 初始版本，建立 Phase 1 任务清单 |
 
