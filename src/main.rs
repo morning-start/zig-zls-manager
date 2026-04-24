@@ -399,10 +399,51 @@ async fn cmd_setup(
 
 async fn cmd_sync(
     _dry_run: bool,
-    _platform: &dyn platform::PlatformTrait,
+    platform: &dyn platform::PlatformTrait,
 ) -> Result<(), utils::error::ZzmError> {
-    console_output::print_info("同步 Zig/ZLS 到推荐组合");
-    console_output::print_warning("Sync 功能将在后续 Sprint 中实现");
+    let zig_manager = ZigManager::new(platform.clone_box())?;
+    let zls_manager = ZlsManager::new(platform.clone_box())?;
+
+    let zig_current = zig_manager.current()?;
+    let zls_current = zls_manager.current()?;
+
+    match (zig_current, zls_current) {
+        (Some(zig), Some(zls)) => {
+            let status = core::compatibility::CompatibilityChecker::check(&zig.version, &zls.version);
+            match status {
+                core::compatibility::CompatibilityStatus::Compatible => {
+                    console_output::print_success(&format!(
+                        "Zig {} 与 ZLS {} 已兼容，无需同步",
+                        zig.version, zls.version
+                    ));
+                }
+                _ => {
+                    let recommended = core::compatibility::CompatibilityChecker::recommended_zls_version(&zig.version);
+                    if let Some(zls_ver) = recommended {
+                        console_output::print_info(&format!(
+                            "正在安装推荐 ZLS 版本 {} 以匹配 Zig {}...",
+                            zls_ver, zig.version
+                        ));
+                        zls_manager.install_compatible(&zig.version, false).await?;
+                        console_output::print_success("同步完成");
+                    } else {
+                        console_output::print_warning("无法确定推荐的 ZLS 版本");
+                    }
+                }
+            }
+        }
+        (Some(zig), None) => {
+            console_output::print_info(&format!(
+                "当前 Zig {} 没有 ZLS，正在安装兼容版本...",
+                zig.version
+            ));
+            zls_manager.install_compatible(&zig.version, false).await?;
+            console_output::print_success("同步完成");
+        }
+        (None, _) => {
+            console_output::print_warning("没有激活的 Zig 版本，请先安装并切换 Zig 版本");
+        }
+    }
     Ok(())
 }
 
@@ -458,35 +499,135 @@ async fn cmd_info(
 
 async fn cmd_config(
     command: cli::ConfigCommands,
-    _platform: &dyn platform::PlatformTrait,
+    platform: &dyn platform::PlatformTrait,
 ) -> Result<(), utils::error::ZzmError> {
+    let config_manager = core::config::ConfigManager::new(platform.clone_box());
+
     match command {
-        cli::ConfigCommands::List => console_output::print_info("列出所有配置项"),
+        cli::ConfigCommands::List => {
+            let items = config_manager.list_all()?;
+            if items.is_empty() {
+                console_output::print_info("配置为空（使用默认值）");
+            } else {
+                let rows: Vec<(&str, String)> = items.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+                render_kv_table("配置项", &rows);
+            }
+        }
         cli::ConfigCommands::Get { key } => {
-            console_output::print_info(&format!("获取配置: {}", key))
+            let value = config_manager.get(&key)?;
+            match value {
+                Some(v) => println!("{} = {}", key, v),
+                None => console_output::print_info(&format!("配置项 '{}' 未设置", key)),
+            }
         }
         cli::ConfigCommands::Set { key, value } => {
-            console_output::print_info(&format!("设置配置: {} = {}", key, value))
+            config_manager.set(&key, &value)?;
+            console_output::print_success(&format!("已设置 {} = {}", key, value));
         }
-        cli::ConfigCommands::Edit => console_output::print_info("编辑配置文件"),
+        cli::ConfigCommands::Edit => {
+            let config_path = config_manager.config_path();
+            let editor = std::env::var("EDITOR")
+                .or_else(|_| std::env::var("VISUAL"))
+                .unwrap_or_else(|_| if cfg!(windows) { "notepad".to_string() } else { "vi".to_string() });
+            console_output::print_info(&format!("使用 {} 编辑 {}", editor, config_path.display()));
+            let status = std::process::Command::new(&editor)
+                .arg(&config_path)
+                .status();
+            match status {
+                Ok(s) if s.success() => console_output::print_success("配置已更新"),
+                Ok(s) => console_output::print_error(&format!("编辑器退出码: {}", s)),
+                Err(e) => console_output::print_error(&format!("无法启动编辑器: {}", e)),
+            }
+        }
     }
-    console_output::print_warning("配置管理功能将在 Sprint 5 中实现");
     Ok(())
 }
 
 async fn cmd_ide(
     command: cli::IdeCommands,
-    _platform: &dyn platform::PlatformTrait,
+    platform: &dyn platform::PlatformTrait,
 ) -> Result<(), utils::error::ZzmError> {
+    let ide_manager = core::ide::IdeManager::new(platform.clone_box());
+
     match command {
         cli::IdeCommands::Config { editor } => {
-            console_output::print_info(&format!("生成 {} IDE 配置", editor));
+            match editor.to_lowercase().as_str() {
+                "vscode" | "code" => {
+                    ide_manager.setup_vscode()?;
+                }
+                "neovim" | "nvim" => {
+                    console_output::print_warning("Neovim 集成将在后续版本中实现");
+                }
+                "helix" => {
+                    console_output::print_warning("Helix 集成将在后续版本中实现");
+                }
+                _ => {
+                    console_output::print_error(&format!("不支持的编辑器: {}", editor));
+                }
+            }
         }
-        cli::IdeCommands::Check => console_output::print_info("检查 IDE 配置状态"),
-        cli::IdeCommands::Doctor => console_output::print_info("诊断 IDE 集成问题"),
-        cli::IdeCommands::Path => console_output::print_info("输出工具路径"),
+        cli::IdeCommands::Check => {
+            // 检查 VS Code 配置状态
+            match ide_manager.vscode_settings_path() {
+                Ok(path) => {
+                    if path.exists() {
+                        let content = std::fs::read_to_string(&path).unwrap_or_default();
+                        let has_zig = content.contains("zig.path");
+                        let has_zls = content.contains("zig.zls.path");
+                        if has_zig && has_zls {
+                            console_output::print_success(&format!(
+                                "VS Code 配置正常 ({})",
+                                path.display()
+                            ));
+                        } else if has_zig {
+                            console_output::print_warning("VS Code 中缺少 zig.zls.path 配置");
+                        } else if has_zls {
+                            console_output::print_warning("VS Code 中缺少 zig.path 配置");
+                        } else {
+                            console_output::print_info("VS Code 中未配置 Zig/ZLS 路径");
+                        }
+                    } else {
+                        console_output::print_info("VS Code settings.json 不存在");
+                    }
+                }
+                Err(e) => console_output::print_warning(&format!("无法检查 VS Code: {}", e)),
+            }
+        }
+        cli::IdeCommands::Doctor => {
+            console_output::print_header("IDE 集成诊断");
+
+            // 检查 Zig 可执行文件
+            match ide_manager.zig_binary_path() {
+                Ok(path) => console_output::print_success(&format!("Zig: {}", path.display())),
+                Err(_) => console_output::print_warning("没有激活的 Zig 版本"),
+            }
+
+            // 检查 ZLS 可执行文件
+            match ide_manager.zls_binary_path() {
+                Ok(path) => console_output::print_success(&format!("ZLS: {}", path.display())),
+                Err(_) => console_output::print_warning("没有激活的 ZLS 版本"),
+            }
+
+            // 检查 VS Code
+            match ide_manager.vscode_settings_path() {
+                Ok(path) => {
+                    console_output::print_info(&format!("VS Code settings: {}", path.display()));
+                }
+                Err(e) => console_output::print_warning(&format!("VS Code: {}", e)),
+            }
+        }
+        cli::IdeCommands::Path => {
+            // 输出 zig/zls 路径
+            match ide_manager.zig_binary_path() {
+                Ok(path) => println!("zig: {}", path.display()),
+                Err(_) => println!("zig: (未安装)"),
+            }
+            match ide_manager.zls_binary_path() {
+                Ok(path) => println!("zls: {}", path.display()),
+                Err(_) => println!("zls: (未安装)"),
+            }
+        }
     }
-    console_output::print_warning("IDE 集成功能将在 Sprint 4 中实现");
     Ok(())
 }
 
