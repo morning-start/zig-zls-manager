@@ -3036,5 +3036,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "xz2",
  "zip",
 ]
