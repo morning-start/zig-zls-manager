@@ -69,7 +69,7 @@ impl FromStr for Version {
         }
 
         let re = Regex::new(r"^(\d+)\.(\d+)(?:\.(\d+))?(?:-(.+))?$")
-            .map_err(|e| ZzmError::InvalidVersion {
+            .map_err(|_| ZzmError::InvalidVersion {
                 version: s.to_string(),
             })?;
 
