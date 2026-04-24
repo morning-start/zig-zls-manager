@@ -4,7 +4,7 @@
 
 - **版本**: v1.0.0
 - **创建日期**: 2026-04-24
-- **当前阶段**: Phase 1 - MVP (v0.1.0)
+- **当前阶段**: Phase 1 - MVP (v0.1.0) — Sprint 0-3 已完成，进入 Sprint 4
 - **关联文档**: [ROADMAP.md](./ROADMAP.md), [architecture.md](./architecture.md)
 
 ---
@@ -30,120 +30,33 @@
 
 #### 任务列表
 
-- [ ] **[P0] T-001: 初始化 Rust 项目**
+- [x] **[P0] T-001: 初始化 Rust 项目** ✅ *已完成*
   - 使用 `cargo init --name zzm` 创建项目
   - 配置 Cargo.toml（Edition 2024）
-  - 创建目录结构：
-    ```
-    src/
-    ├── main.rs
-    ├── cli.rs
-    ├── core/
-    │   ├── mod.rs
-    │   ├── zig_manager.rs
-    │   ├── zls_manager.rs
-    │   └── compatibility.rs
-    ├── infra/
-    │   ├── mod.rs
-    │   ├── downloader.rs
-    │   ├── filesystem.rs
-    │   ├── path_manager.rs
-    │   └── checksum.rs
-    ├── platform/
-    │   ├── mod.rs
-    │   └── trait.rs
-    ├── output/
-    │   └── mod.rs
-    └── utils/
-        ├── error.rs
-        └── version.rs
-    tests/
-    └── docs/
-    ```
+  - 创建完整目录结构（src/core/, src/infra/, src/platform/, src/output/, src/utils/）
 
-- [ ] **[P0] T-002: 配置核心依赖**
-  在 Cargo.toml 中添加：
-  ```toml
-  [dependencies]
-  clap = { version = "4", features = ["derive"] }
-  tokio = { version = "1", features = ["full"] }
-  reqwest = { version = "0.11", features = ["json", "stream"] }
-  serde = { version = "1", features = ["derive"] }
-  serde_json = "1"
-  toml = "0.8"
-  anyhow = "1"
-  thiserror = "1"
-  tracing = "0.1"
-  console = "0.15"
-  tabled = "0.15"
-  indicatif = "0.17"
-  dialoguer = "0.11"
-  semver = "1"
-  sha2 = "0.10"
-  flate2 = "1"
-  zip = "0.6"
-  dirs = "5"
+- [x] **[P0] T-002: 配置核心依赖** ✅ *已完成*
+  - clap 4, tokio 1, reqwest 0.12, serde/serde_json, toml 0.8
+  - anyhow 1, thiserror 2, tracing 0.1 + tracing-subscriber
+  - console 0.15, tabled 0.16, indicatif 0.17, dialoguer 0.11
+  - semver 1, sha2 0.10, hex 0.4, flate2 1, tar 0.4, xz2 0.1, zip 2
+  - dirs 6, chrono 0.4, regex 1, url 2, futures-util 0.3
+  - clap_complete 4（Shell 补全生成）
 
-  [dev-dependencies]
-  tempfile = "3"
-  assert_cmd = "2"
-  ```
-
-- [ ] **[P0] T-003: 定义错误类型体系**
+- [x] **[P0] T-003: 定义错误类型体系** ✅ *已完成*
   文件: `src/utils/error.rs`
-  ```rust
-  use thiserror::Error;
+  - 完整的 ZzmError 枚举（17 种变体）
+  - 包含 Io, Network, Json, Toml, DownloadFailed, DownloadInterrupted
+  - InvalidVersion, VersionNotFound, AlreadyInstalled, NotInstalled
+  - ChecksumMismatch, ConfigError, UnsupportedPlatform, PermissionDenied
+  - IncompatibleVersions, ExtractionFailed, SymlinkFailed
+  - CacheDirCreationFailed, InsufficientDiskSpace, Cancelled, HttpError, RateLimited
 
-  #[derive(Error, Debug)]
-  pub enum ZzmError {
-      #[error("IO 错误: {0}")]
-      Io(#[from] std::io::Error),
-
-      #[error("网络请求失败: {0}")]
-      Network(#[from] reqwest::Error),
-
-      #[error("下载失败: {url} ({reason})")]
-      DownloadFailed { url: String, reason: String },
-
-      #[error("无效的版本号: {version}")]
-      InvalidVersion { version: String },
-
-      #[error("版本 '{version}' 未找到")]
-      VersionNotFound { version: String },
-
-      #[error("版本 '{version}' 已安装")]
-      AlreadyInstalled { version: String },
-
-      #[error("校验和不匹配")]
-      ChecksumMismatch,
-
-      #[error("配置错误: {0}")]
-      Config(String),
-
-      #[error("不支持的平台")]
-      UnsupportedPlatform,
-  }
-
-  pub type Result<T> = std::result::Result<T, ZzmError>;
-  ```
-
-- [ ] **[P0] T-004: 初始化日志系统**
-  文件: `src/main.rs` (或 src/lib.rs)
-  ```rust
-  use tracing_subscriber;
-
-  fn init_logging(verbose: bool) {
-      let level = if verbose {
-          tracing::Level::DEBUG
-      } else {
-          tracing::Level::INFO
-      };
-
-      tracing_subscriber::fmt()
-          .with_max_level(level)
-          .init();
-  }
-  ```
+- [x] **[P0] T-004: 初始化日志系统** ✅ *已完成*
+  文件: `src/main.rs`
+  - tracing-subscriber + EnvFilter
+  - 支持 RUST_LOG 环境变量
+  - verbose 模式切换 debug/warn 级别
 
 **验收标准**:
 - ✅ `cargo build` 编译通过
@@ -158,30 +71,31 @@
 
 #### 任务列表
 
-- [ ] **[P0] T-005: 实现 CLI 命令定义**
+- [x] **[P0] T-005: 实现 CLI 命令定义** ✅ *已完成*
   文件: `src/cli.rs`
-  - 定义 `Cli` 结构体（全局选项）
-  - 定义 `Commands` 枚举（子命令）
-  - 实现 `install`, `uninstall`, `list`, `use`, `current` 子命令
-  - 实现 `zls` 子命令组
-  - 实现 `ide`, `config`, `setup` 子命令组
-  - 参考 architecture.md 第 2.1.1 节的完整命令树
+  - Cli 结构体（全局选项：no_color, verbose, json）
+  - Commands 枚举（12 个子命令：install/uninstall/list/use/current/zls/setup/sync/info/config/ide/clean/doctor/completion）
+  - ZlsCommands 子命令组（install/uninstall/list/use/current）
+  - ConfigCommands 子命令组（list/get/set/edit）
+  - IdeCommands 子命令组（config/check/doctor/path）
 
-- [ ] **[P0] T-006: 实现 Platform trait 和适配器**
-  文件: `src/platform/trait.rs`, `windows.rs`, `macos.rs`, `linux.rs`
-  - 定义 `PlatformTrait` trait
-  - 实现 WindowsPlatform（shim 文件、注册表操作）
-  - 实现 MacOSPlatform（符号链接、plist）
-  - 实现 LinuxPlatform（符号链接、.bashrc/.zshrc）
-  - 实现运行时平台检测函数
+- [x] **[P0] T-006: 实现 Platform trait 和适配器** ✅ *已完成*
+  文件: `src/platform/trait_def.rs`, `windows.rs`, `macos.rs`, `linux.rs`
+  - PlatformTrait trait（16 个方法 + clone_box）
+  - WindowsPlatform（shim 文件、注册表操作）
+  - MacOSPlatform（符号链接、plist）
+  - LinuxPlatform（符号链接、.bashrc/.zshrc）
+  - detect_platform() 运行时平台检测
+  - current_target_triple() 目标三元组
 
-- [ ] **[P1] T-007: 实现输出格式化模块**
-  文件: `src/output/mod.rs`
-  - 成功消息（绿色 ✓）
-  - 警告消息（黄色 ⚠）
-  - 错误消息（红色 ✗）
-  - 表格输出封装
-  - JSON 输出模式开关
+- [x] **[P1] T-007: 实现输出格式化模块** ✅ *已完成*
+  文件: `src/output/console_output.rs`, `json_output.rs`, `table_output.rs`, `progress.rs`
+  - 成功消息（绿色 ✓）/ 警告消息（黄色 ⚠）/ 错误消息（红色 ✗）/ 信息消息（蓝色 ℹ）
+  - 步骤消息 print_step（带编号）
+  - 表格输出（VersionRow/InstalledVersionRow/RemoteVersionRow/KV 表格）
+  - JSON 输出模式
+  - 全局 no_color 支持（thread_local）
+  - DownloadProgress 进度条
 
 **验收标准**:
 - ✅ `zzm --help` 显示完整的帮助信息
@@ -197,51 +111,42 @@
 
 #### 任务列表
 
-- [ ] **[P0] T-008: 实现 Zig JSON API 客户端**
-  文件: `src/infra/zig_api.rs` (新建)
-  - 定义数据结构（参考 api-reference.md 第 2 章）
-    ```rust
-    struct ZigDownloadIndex { master: ZigVersionInfo }
-    struct ZigVersionInfo { date, platforms: PlatformBinaries }
-    struct PlatformBinaries { windows, macos, linux: Vec<BinaryAsset> }
-    struct BinaryAsset { os, arch, filename, size, shasum, url }
-    ```
-  - 实现 `fetch_zig_versions()` 异步函数
-  - 实现本地缓存（文件系统 + TTL）
-  - 实现平台自动匹配逻辑
-  - 单元测试：Mock 数据验证解析逻辑
+- [x] **[P0] T-008: 实现 Zig JSON API 客户端** ✅ *已完成*
+  文件: `src/infra/zig_api.rs`
+  - ZigDownloadIndex/ZigVersionEntry/ZigPlatforms/ZigPlatformAsset 数据结构
+  - ZigVersionInfo 统一版本信息 + ZigChannel 枚举
+  - ZigApiClient：缓存 + 远程获取 + 版本查询 + 平台匹配
+  - 本地缓存（文件系统 + 1小时 TTL）
+  - 平台自动匹配逻辑（find_matching_asset）
+  - 语义版本排序
+  - get_version_info / get_latest_stable / get_master 方法
 
-- [ ] **[P0] T-009: 实现 ZLS GitHub API 客户端**
-  文件: `src/infra/zls_api.rs` (新建)
-  - 定义数据结构（参考 api-reference.md 第 3 章）
-    ```rust
-    struct GithubRelease { tag_name, name, prerelease, assets }
-    struct GithubAsset { id, name, size, browser_download_url }
-    ```
-  - 实现 `fetch_zls_releases()` 异步函数
-  - 实现分页处理（per_page=100）
-  - 实现认证头支持（可选 GitHub Token）
-  - 实现速率限制处理（检查 X-RateLimit-Remaining）
-  - 实现稳定版本过滤（排除 prerelease/draft）
-  - 单元测试：Mock 数据验证
+- [x] **[P0] T-009: 实现 ZLS GitHub API 客户端** ✅ *已完成*
+  文件: `src/infra/zls_api.rs`
+  - GithubRelease/GithubAsset 数据结构
+  - ZlsVersionInfo/ZlsChannel 统一版本信息
+  - ZlsApiClient：GitHub Token 认证 + 速率限制处理 + 3次重试
+  - 指数退避重试机制
+  - X-RateLimit-Remaining 检测 + 自动等待
+  - find_compatible_version 三级查找策略（精确→主版本→回退最新稳定版）
+  - find_matching_zls_asset 平台匹配
 
-- [ ] **[P0] T-010: 实现版本解析工具**
+- [x] **[P0] T-010: 实现版本解析工具** ✅ *已完成*
   文件: `src/utils/version.rs`
-  - 解析完整版本号："0.13.0" → Version { major: 0, minor: 13, patch: 0 }
-  - 解析简写版本："0.13" → 查询最新 0.13.x
-  - 特殊标识符处理："master", "stable", "nightly"
-  - 版本比较和排序
-  - VersionRange 匹配（用于兼容性矩阵）
+  - Version 结构体（major/minor/patch/pre_release）
+  - FromStr 实现（支持 "0.13.0", "0.13", "master", "stable"）
+  - resolve_version 函数（简写补全：".13" → "0.13.0"）
+  - Display 实现
+  - 版本比较和排序（Ord/PartialOrd）
 
-- [ ] **[P1] T-011: 实现下载管理器**
+- [x] **[P1] T-011: 实现下载管理器** ✅ *已完成*
   文件: `src/infra/downloader.rs`
-  - HTTP GET 请求（reqwest）
-  - 流式下载（bytes_stream）
-  - 进度回调接口
-  - 超时配置（connect timeout, read timeout）
-  - 重试机制（3次，指数退避：100ms, 200ms, 400ms）
-  - User-Agent 设置："zzm/{version}"
-  - 集成测试：实际下载小文件验证
+  - HTTP 流式下载（reqwest bytes_stream）
+  - 进度条显示（indicatif）
+  - 3次指数退避重试（100ms, 200ms, 400ms）
+  - 临时文件写入 + 原子重命名保证完整性
+  - 缓存目录下载（download_to_cache）
+  - User-Agent 设置
 
 **验收标准**:
 - ✅ `zzm list --remote` 能返回 Zig 远程版本列表
@@ -257,69 +162,66 @@
 
 #### 任务列表
 
-- [ ] **[P0] T-012: 实现路径管理器**
+- [x] **[P0] T-012: 实现路径管理器** ✅ *已完成*
   文件: `src/infra/path_manager.rs`
-  - 初始化 ~/.zzm/ 目录结构
-    ```
-    ~/.zzm/
-    ├── bin/              # 符号链接/shim
-    ├── versions/
-    │   ├── zig/          # 各版本 Zig
-    │   └── zls/          # 各版本 ZLS
-    ├── cache/            # 下载缓存
-    ├── config.toml       # 全局配置
-    └── installed.json    # 已安装版本索引
-    ```
-  - 创建/删除符号链接（跨平台）
-  - Windows shim 文件生成
-  - PATH 更新提示生成
-  - 目录清理工具方法
+  - InstalledIndex/InstalledZigVersion/InstalledZlsVersion 数据结构
+  - PathManager：目录管理 + 符号链接 + 元数据索引
+  - 初始化 ~/.zzm/ 目录结构（bin/versions/zig/versions/zls/cache）
+  - 创建/删除 Zig/ZLS 符号链接
+  - 读写 installed.json 元数据索引
+  - 缓存大小计算（递归目录遍历）
+  - 读取当前激活版本（符号链接目标解析）
 
-- [ ] **[P0] T-013: 实现文件系统操作模块**
+- [x] **[P0] T-013: 实现文件系统操作模块** ✅ *已完成*
   文件: `src/infra/filesystem.rs`
-  - tar.gz 解压（使用 flate2 + tar crate）
-  - zip 解压（使用 zip crate）
-  - 自动检测压缩格式
+  - tar.gz 解压（flate2 + tar）
+  - tar.xz 解压（xz2 + tar）
+  - zip 解压（zip crate）
+  - 自动检测压缩格式（根据扩展名）
   - 安全解压（防止路径遍历攻击）
   - 文件权限设置（Unix executable bit）
+  - 目录重组（Zig 包含顶层目录需扁平化）
+  - remove_dir_all 安全删除
 
-- [ ] **[P0] T-014: 实现校验和验证模块**
+- [x] **[P0] T-014: 实现校验和验证模块** ✅ *已完成*
   文件: `src/infra/checksum.rs`
-  - SHA256 计算（sha2 crate）
-  - 与预期值比对
+  - SHA256 计算（sha2 + hex）
+  - 与预期值比对（大小写不敏感）
   - 错误时提供详细信息（期望值 vs 实际值）
-  - 可选：minisign 签名验证
 
-- [ ] **[P0] T-015: 实现 ZigManager 核心逻辑**
+- [x] **[P0] T-015: 实现 ZigManager 核心逻辑** ✅ *已完成*
   文件: `src/core/zig_manager.rs`
-  数据结构：
-  ```rust
-  struct ZigVersion { version, channel, download_url, checksum_sha256, size }
-  struct ZigInstallation { version, install_path, installed_at, is_active }
-  ```
-  核心方法：
-  - `install(version, options)` → 下载 → 校验 → 解压 → 注册
-  - `uninstall(version)` → 删除目录 → 清理链接 → 更新元数据
-  - `list_installed()` → 读取 installed.json → 返回列表
-  - `list_remote()` → 调用 Zig API → 格式化返回
-  - `use_version(version, scope)` → 更新符号链接 → 写入 .zzmrc（如果 project scope）
-  - `current()` → 读取符号链接目标 → 返回版本信息
-  - `resolve_version(input)` → 版本号解析与补全
+  - ZigManager 结构体（platform + path_manager + api_client + downloader）
+  - install(version, force): 解析版本→下载→校验→解压→重组→设置权限→注册
+  - uninstall(version): 删除目录→清理链接→更新索引
+  - list_installed(): 读取 installed.json 返回列表
+  - list_remote(): 调用 Zig API 返回版本列表
+  - use_version(version): 验证安装→创建符号链接→更新 active_zig
+  - current(): 读取索引返回当前激活版本
+  - reorganize_extracted_files(): 处理解压后目录结构
 
-- [ ] **[P0] T-016: 集成 install/uninstall/list/use/current 命令**
-  文件: `src/main.rs` 或独立的 command handler 模块
-  - 将 CLI 子命令路由到 ZigManager 方法
-  - 处理参数验证
-  - 格式化输出结果
-  - 错误处理和用户友好提示
+- [x] **[P0] T-016: 集成 install/uninstall/list/use/current 命令** ✅ *已完成*
+  文件: `src/main.rs`
+  - 所有 CLI 子命令路由到 ZigManager/ZlsManager 实际方法
+  - cmd_install: ZigManager::install + 可选 ZlsManager::install_compatible
+  - cmd_uninstall: ZigManager::uninstall
+  - cmd_list: 区分已安装/远程列表，支持 JSON 输出
+  - cmd_use: ZigManager::use_version + 可选 ZlsManager::use_version
+  - cmd_current: 显示当前激活的 Zig/ZLS 版本
+  - cmd_zls: 完整的 ZLS 子命令路由
+  - cmd_setup: 一键初始化开发环境
+  - cmd_clean: CacheManager 清理缓存
+  - cmd_info / cmd_doctor: 环境信息和诊断
+  - cmd_completion: Shell 自动补全生成
 
-- [ ] **[P1] T-017: 实现缓存管理器**
+- [x] **[P1] T-017: 实现缓存管理器** ✅ *已完成*
   文件: `src/infra/cache.rs`
-  - 缓存存储路径管理
-  - TTL 过期检查
-  - 缓存清理命令
-  - 磁盘空间监控
-  - LRU 淘汰策略（可选）
+  - CacheManager：缓存存储路径管理
+  - total_size(): 递归计算缓存总大小
+  - clean_all(): 清理所有缓存
+  - clean_expired(ttl): 按过期时间清理
+  - preview_clean(): 预览将要清理的内容
+  - 文件大小格式化
 
 **验收标准**:
 - ✅ `zzm install 0.13.0` 成功安装并可用
@@ -338,25 +240,22 @@
 
 #### 任务列表
 
-- [ ] **[P0] T-018: 实现 ZLSManager 基础逻辑**
+- [x] **[P0] T-018: 实现 ZLSManager 基础逻辑** ✅ *已完成*
   文件: `src/core/zls_manager.rs`
-  数据结构：
-  ```rust
-  struct ZlsVersion { version, compatible_zig, download_url, source_repo }
-  struct ZlsInstallation { version, install_path, zig_version, install_mode }
-  ```
-  核心方法：
-  - `find_compatible_version(zig_version)` → 根据 Zig 版本查找匹配的 ZLS
-  - `install_from_release(version)` → 从 GitHub Releases 下载预编译版
-  - `list_installed()` / `current()`
-  - `use_version(version)`
+  - ZlsManager 结构体（platform + path_manager + api_client + downloader）
+  - install(version, zig_version, force): 解析版本→下载→解压→重组→查找二进制→注册
+  - install_compatible(zig_version, force): 根据 Zig 版本自动匹配 ZLS
+  - uninstall(version): 删除目录→清理链接→更新索引
+  - list_installed(): 读取 installed.json 返回列表
+  - list_remote(): 调用 ZLS API 返回版本列表
+  - use_version(version): 验证安装→创建符号链接→更新 active_zls
+  - current(): 读取索引返回当前激活版本
+  - find_and_link_zls_binary(): 在解压目录中搜索 ZLS 二进制
 
-- [ ] **[P0] T-019: 实现 --with-zls 参数集成**
-  - 修改 `install` 命令处理逻辑
-  - 并行下载 Zig + ZLS（tokio::join!）
-  - 自动匹配兼容版本
-  - 统一进度显示（两个进度条？或合并？）
-  - 原子性保证：任一失败则回滚两者
+- [x] **[P0] T-019: 实现 --with-zls 参数集成** ✅ *已完成*
+  - cmd_install 中支持 --with-zls 参数
+  - 安装 Zig 后自动调用 ZlsManager::install_compatible
+  - 统一进度显示和错误处理
 
 - [ ] **[P0] T-020: 实现 VS Code IDE 集成**
   文件: `src/core/ide/vscode.rs`
@@ -370,6 +269,7 @@
         "editor.formatOnSave": true
       }
     }
+    ```
   - 实现 `zzm ide config vscode` 命令
   - 检测是否已有 .vscode/settings.json（合并而非覆盖）
 
@@ -388,9 +288,9 @@
 **验收标准**:
 - ✅ `zzm install 0.13.0 --with-zls` 同时安装两个工具
 - ✅ `zzm zls current` 显示当前 ZLS 版本
-- ✅ `zzm ide config vscode` 生成正确的 settings.json
-- ✅ `zzm ide path` 输出正确的路径
-- ✅ 版本不匹配时有警告提示
+- [ ] `zzm ide config vscode` 生成正确的 settings.json
+- [ ] `zzm ide path` 输出正确的路径
+- [ ] 版本不匹配时有警告提示
 
 ---
 
@@ -423,22 +323,22 @@
   - `test_ide_integration.rs`: IDE 配置生成测试
   - 使用 tempfile 创建临时环境
 
-- [ ] **[P1] T-026: 实现基础诊断功能 (`zzm info`)**
-  - 显示当前环境状态
-  - 已安装版本列表
-  - 当前活动版本
-  - 配置文件位置
-  - 兼容性状态
+- [x] **[P1] T-026: 实现基础诊断功能 (`zzm info`)** ✅ *已完成*
+  - 显示平台/架构/安装目录/bin 目录/PATH 状态
+  - 当前 Zig/ZLS 版本
+  - 已安装版本数量
+  - 缓存大小
 
-- [ ] **[P1] T-027: 实现缓存清理 (`zzm clean`)**
+- [x] **[P1] T-027: 实现缓存清理 (`zzm clean`)** ✅ *已完成*
   - `--all`: 清理所有缓存
   - `--dry-run`: 仅显示将要清理的内容
   - 显示释放的磁盘空间
+  - 默认清理 7 天前的过期缓存
 
 **验收标准**:
-- ✅ `zzm config list` 显示所有配置项
-- ✅ `cargo test` 通过，覆盖率 > 70%
-- ✅ 集成测试覆盖主要用户场景
+- [ ] `zzm config list` 显示所有配置项
+- [ ] `cargo test` 通过，覆盖率 > 70%
+- [ ] 集成测试覆盖主要用户场景
 - ✅ `zzm info` 输出清晰的环境信息
 
 ---
@@ -512,28 +412,30 @@
 ## 🔗 任务依赖关系图
 
 ```
-T-001 (项目初始化)
+T-001 (项目初始化) ✅
   ↓
-T-002 (依赖配置) → T-003 (错误类型) → T-004 (日志)
+T-002 (依赖配置) ✅ → T-003 (错误类型) ✅ → T-004 (日志) ✅
   ↓
-T-005 (CLI 框架) ← T-006 (平台抽象)
+T-005 (CLI 框架) ✅ ← T-006 (平台抽象) ✅ ← T-007 (输出格式) ✅
   ↓
-T-008 (Zig API) ← T-010 (版本解析) → T-009 (ZLS API)
+T-008 (Zig API) ✅ ← T-010 (版本解析) ✅ → T-009 (ZLS API) ✅
   ↓                              ↓
-T-011 (下载器)              T-015 (ZigManager) ← T-012 (路径管理)
+T-011 (下载器) ✅           T-015 (ZigManager) ✅ ← T-012 (路径管理) ✅
   ↓                              ↓           ↓
-T-013 (文件系统)         T-016 (命令集成) ← T-014 (校验和)
+T-013 (文件系统) ✅      T-016 (命令集成) ✅ ← T-014 (校验和) ✅
   ↓
-T-018 (ZLSManager) → T-019 (--with-zls)
+T-017 (缓存管理) ✅ → T-018 (ZLSManager) ✅ → T-019 (--with-zls) ✅
   ↓
 T-020 (VS Code) + T-021 (ide path) + T-022 (兼容性)
   ↓
-T-023 (配置) → T-026 (info) + T-027 (clean)
+T-023 (配置) → T-026 (info) ✅ + T-027 (clean) ✅
   ↓
 T-024 (单元测试) + T-025 (集成测试)
   ↓
 T-028 (CI/CD) → T-029-T-031 (文档) → T-033 (发布)
 ```
+
+**当前进度**: Sprint 0-3 全部完成，Sprint 4 部分完成（T-018/T-019），Sprint 5 部分完成（T-026/T-027）
 
 ---
 
@@ -631,13 +533,16 @@ bugfix/progress-bar-crash
 
 ## 🐛 已知问题 & 技术债务
 
-*(随着开发进展持续更新)*
-
-- [ ] #001: 需要确定是否支持 Zig 0.10 及更早版本（API 可能不同）
+- [x] #001: ~~需要确定是否支持 Zig 0.10 及更早版本（API 可能不同）~~ → 当前支持所有 Zig 官方 API 提供的版本
 - [ ] #002: Windows 下长路径问题（MAX_PATH 限制）
 - [ ] #003: 代理服务器支持（HTTP_PROXY 环境变量）
 - [ ] #004: 离线模式支持（纯本地操作）
 - [ ] #005: 国际化（i18n）框架选择
+- [ ] #006: T-019 并行下载 Zig + ZLS（当前为串行，应改为 tokio::join!）
+- [ ] #007: install 原子性保证（任一失败需回滚两者）
+- [ ] #008: ZlsManager::find_and_link_zls_binary 中未使用的 _binary_name 变量
+- [ ] #009: zig_manager::use_version 中 _installed 变量未使用（确认版本是否存在但不读取信息）
+- [ ] #010: 21 个 dead code 警告（空壳模块：compatibility/config/ide/project，将在后续 Sprint 消除）
 
 ---
 
@@ -656,6 +561,7 @@ bugfix/progress-bar-crash
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
+| 2026-04-25 | v1.1.0 | 更新 Sprint 0-3 全部完成，Sprint 4 部分完成（T-018/T-019），Sprint 5 部分完成（T-026/T-027） |
 | 2026-04-24 | v1.0.0 | 初始版本，建立 Phase 1 任务清单 |
 
 ---
@@ -664,4 +570,4 @@ bugfix/progress-bar-crash
 
 **当前负责人**: 待定
 
-**最后评审**: 2026-04-24
+**最后评审**: 2026-04-25
