@@ -371,6 +371,20 @@ fn extract_filename_from_url(url: &str) -> String {
     url.rsplit('/').next().unwrap_or("zig-unknown").to_string()
 }
 
+/// 格式化资源大小字符串
+///
+/// Zig API 的 size 字段可能是原始字节数字符串（如 "97217739"），
+/// 也可能已经是人类可读格式。此函数检测并统一格式化。
+fn format_asset_size(size_str: &str) -> String {
+    // 尝试解析为字节数
+    if let Ok(bytes) = size_str.parse::<u64>() {
+        crate::utils::format::format_size(bytes)
+    } else {
+        // 已经是格式化字符串，直接返回
+        size_str.to_string()
+    }
+}
+
 /// 解析文件大小字符串为字节数
 ///
 /// 支持两种格式：
@@ -423,13 +437,14 @@ impl crate::core::tool_manager::VersionProvider for ZigApiClient {
         Ok(crate::core::tool_manager::VersionInfo {
             version: info.version,
             channel: info.channel,
+            date: Some(info.date),
             asset: info.asset.map(|a| {
                 let filename = extract_filename_from_url(&a.tarball);
                 crate::core::tool_manager::DownloadAsset {
                     url: a.tarball,
                     filename,
                     shasum: a.shasum,
-                    size: a.size,
+                    size: format_asset_size(&a.size),
                 }
             }),
         })
@@ -444,13 +459,14 @@ impl crate::core::tool_manager::VersionProvider for ZigApiClient {
             .map(|v| crate::core::tool_manager::VersionInfo {
                 version: v.version,
                 channel: v.channel,
+                date: Some(v.date),
                 asset: v.asset.map(|a| {
                     let filename = extract_filename_from_url(&a.tarball);
                     crate::core::tool_manager::DownloadAsset {
                         url: a.tarball,
                         filename,
                         shasum: a.shasum,
-                        size: a.size,
+                        size: format_asset_size(&a.size),
                     }
                 }),
             })

@@ -32,6 +32,8 @@ pub struct RemoteVersionRow {
     pub version: String,
     #[tabled(rename = "通道")]
     pub channel: String,
+    #[tabled(rename = "日期")]
+    pub date: String,
     #[tabled(rename = "大小")]
     pub size: String,
     #[tabled(rename = "已安装")]

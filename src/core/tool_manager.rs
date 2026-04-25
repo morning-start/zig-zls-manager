@@ -44,6 +44,8 @@ pub struct VersionInfo {
     pub version: String,
     /// 版本通道
     pub channel: Channel,
+    /// 发布日期
+    pub date: Option<String>,
     /// 当前平台匹配的下载资源
     pub asset: Option<DownloadAsset>,
 }
@@ -729,6 +731,7 @@ mod tests {
         let info = VersionInfo {
             version: "0.13.0".to_string(),
             channel: Channel::Stable,
+            date: Some("2026-04-13".to_string()),
             asset: Some(DownloadAsset {
                 url: "https://example.com/zig.tar.xz".to_string(),
                 filename: "zig.tar.xz".to_string(),
@@ -746,6 +749,7 @@ mod tests {
         let info = VersionInfo {
             version: "0.14.0-dev".to_string(),
             channel: Channel::Nightly,
+            date: None,
             asset: None,
         };
         assert!(info.asset.is_none());
@@ -756,6 +760,7 @@ mod tests {
         let info = VersionInfo {
             version: "0.13.0".to_string(),
             channel: Channel::Stable,
+            date: Some("2026-04-13".to_string()),
             asset: Some(DownloadAsset {
                 url: "https://example.com/zig.tar.xz".to_string(),
                 filename: "zig.tar.xz".to_string(),

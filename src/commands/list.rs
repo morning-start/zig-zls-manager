@@ -25,6 +25,7 @@ pub async fn cmd_list(
                 .map(|v| RemoteVersionRow {
                     version: v.version.clone(),
                     channel: v.channel.to_string(),
+                    date: v.date.clone().unwrap_or_default(),
                     size: v.asset.as_ref().map(|a| a.size.clone()).unwrap_or_default(),
                     installed: String::new(), // TODO: 交叉检查
                 })

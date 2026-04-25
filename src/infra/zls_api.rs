@@ -384,6 +384,7 @@ impl crate::core::tool_manager::VersionProvider for ZlsApiClient {
         Ok(crate::core::tool_manager::VersionInfo {
             version: info.version,
             channel: info.channel,
+            date: info.published_at,
             asset: info
                 .asset
                 .map(|a| crate::core::tool_manager::DownloadAsset {
@@ -404,6 +405,7 @@ impl crate::core::tool_manager::VersionProvider for ZlsApiClient {
             .map(|v| crate::core::tool_manager::VersionInfo {
                 version: v.version,
                 channel: v.channel,
+                date: v.published_at,
                 asset: v.asset.map(|a| crate::core::tool_manager::DownloadAsset {
                     url: a.browser_download_url,
                     filename: a.name,
@@ -422,6 +424,7 @@ impl crate::core::tool_manager::VersionProvider for ZlsApiClient {
         Ok(crate::core::tool_manager::VersionInfo {
             version: info.version,
             channel: info.channel,
+            date: info.published_at,
             asset: info
                 .asset
                 .map(|a| crate::core::tool_manager::DownloadAsset {
