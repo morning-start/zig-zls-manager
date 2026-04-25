@@ -4,8 +4,9 @@
 
 - **版本**: v1.0.0
 - **创建日期**: 2026-04-23
-- **状态**: 初稿
-- **关联文档**: [spec.md](./spec.md) | [architecture.md](./architecture.md)
+- **最后更新**: 2026-04-26
+- **适用版本**: zig-zls-manager v0.1.0+
+- **关联文档**: [spec.md](./spec.md) | [architecture.md](./architecture.md) | [usage.md](./usage.md)
 
 ---
 

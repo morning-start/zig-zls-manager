@@ -3,10 +3,12 @@
 ## 📋 文档信息
 
 - **版本**: v3.2.0
-- **更新日期**: 2026-04-25
+- **更新日期**: 2026-04-26
+- **适用版本**: zig-zls-manager v0.1.0+
+- **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [usage.md](./usage.md)
 - **当前阶段**: Phase 1 MVP + 架构优化重构完成
 - **编译状态**: ✅ cargo clippy -D warnings 零警告
-- **测试状态**: ✅ 187/187 全部通过
+- **测试状态**: ✅ 190/190 全部通过
 
 ---
 

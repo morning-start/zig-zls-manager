@@ -4,9 +4,9 @@
 
 - **版本**: v1.2.0
 - **创建日期**: 2026-04-23
-- **最后更新**: 2026-04-25
-- **状态**: 已更新（基于源码分析）
-- **关联文档**: [spec.md](./spec.md) (需求规格说明书)
+- **最后更新**: 2026-04-26
+- **适用版本**: zig-zls-manager v0.1.0+
+- **关联文档**: [spec.md](./spec.md) | [usage.md](./usage.md)
 
 ---
 
@@ -839,7 +839,7 @@ impl FileSystemManager {
 安装根目录解析优先级：
 1. `ZZM_ROOT` 环境变量（最高优先级，覆盖所有默认值）
 2. 配置文件 `config.toml` 中的 `install_dir` 字段
-3. 平台默认路径（Linux: `~/.zzm` / `$XDG_DATA_HOME/zzm`，macOS: `~/.zzm`，Windows: `%LOCALAPPDATA%\zzm`）
+3. 平台默认路径（Linux: `~/.zzm` / `$XDG_DATA_HOME/zzm`，macOS: `~/.zzm`，Windows: `%USERPROFILE%\.zzm`）
 
 版本切换时的两种模式：
 - **PATH 模式**（传统）：`bin/zig -> versions/zig/<version>/zig`，需要将 `bin/` 加入 PATH
@@ -1006,9 +1006,9 @@ impl PlatformTrait for WindowsPlatform {
     fn name(&self) -> &'static str { "windows" }
 
     fn default_install_dir(&self) -> PathBuf {
-        dirs::data_local_dir()
+        dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from(r"C:\Users"))
-            .join("zzm")
+            .join(".zzm")
     }
 
     fn create_symlink(&self, original: &Path, link: &Path) -> Result<()> {
@@ -1568,7 +1568,7 @@ cargo install zzm --locked
 - Downloader 指数退避重试 + 临时文件写入策略已实现
 - SHA256 校验、缓存TTL 1小时、GitHub Token 认证均按设计实现
 - Clippy 零警告通过（22个 dead code 已标注 `#[allow(dead_code)]`）
-- 单元测试 166/166 全部通过
+- 单元测试 190/190 全部通过
 
 ### D.2 与设计文档的偏差
 
@@ -1592,3 +1592,5 @@ cargo install zzm --locked
 ---
 
 *本文档将随着项目开发持续迭代和完善。*
+
+**最后更新**: 2026-04-26

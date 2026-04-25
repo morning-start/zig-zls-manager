@@ -4,7 +4,7 @@
 
 - **版本**: v1.1.0
 - **创建日期**: 2026-04-23
-- **最后更新**: 2026-04-25
+- **最后更新**: 2026-04-26
 - **适用版本**: zig-zls-manager v0.1.0+
 - **关联文档**: [spec.md](./spec.md) | [architecture.md](./architecture.md)
 
@@ -1270,7 +1270,7 @@ zzm install $(cat /tmp/zvm-version.txt)
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| `ZZM_ROOT` | zzm 安装根目录（覆盖平台默认路径和配置文件） | 平台默认路径（Linux: `~/.zzm`，macOS: `~/.zzm`，Windows: `%LOCALAPPDATA%\zzm`） |
+| `ZZM_ROOT` | zzm 安装根目录（覆盖平台默认路径和配置文件） | 平台默认路径（Linux: `~/.zzm`，macOS: `~/.zzm`，Windows: `%USERPROFILE%\.zzm`） |
 | `ZIG_HOME` | 指向当前 Zig 版本目录（设置 `ZIG_HOME=~/.zzm/default` 即可） | 无 |
 | `ZLS_HOME` | 指向当前 ZLS 版本目录（设置 `ZLS_HOME=~/.zzm/default-zls` 即可） | 无 |
 | `ZZM_CACHE_DIR` | 缓存目录 | `<ZZM_ROOT>/cache` |

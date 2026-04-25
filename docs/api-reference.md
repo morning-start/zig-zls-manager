@@ -4,8 +4,9 @@
 
 - **版本**: v1.1.0
 - **创建日期**: 2026-04-24
-- **状态**: 已验证（基于源码实现对照）
-- **关联文档**: [architecture.md](./architecture.md) (技术架构设计文档)
+- **最后更新**: 2026-04-26
+- **适用版本**: zig-zls-manager v0.1.0+
+- **关联文档**: [architecture.md](./architecture.md) | [usage.md](./usage.md)
 
 ---
 
@@ -912,3 +913,5 @@ curl -s https://api.github.com/repos/zigtools/zls/releases \
 ---
 
 *本文档将随着 API 变化和项目开发持续更新。*
+
+**最后更新**: 2026-04-26
