@@ -55,23 +55,19 @@ impl ZlsManager {
         // 获取版本信息
         let version_info = self.api_client.get_version_info(&resolved).await?;
 
-        let asset = version_info.asset.as_ref().ok_or_else(|| {
-            ZzmError::VersionNotFound {
+        let asset = version_info
+            .asset
+            .as_ref()
+            .ok_or_else(|| ZzmError::VersionNotFound {
                 version: format!("ZLS {} (当前平台无匹配的二进制)", resolved),
-            }
-        })?;
+            })?;
 
         // 检查是否已安装
         let index = self.path_manager.read_installed_index()?;
-        let already_installed = index
-            .zls_versions
-            .iter()
-            .any(|v| v.version == resolved);
+        let already_installed = index.zls_versions.iter().any(|v| v.version == resolved);
 
         if already_installed && !force {
-            return Err(ZzmError::AlreadyInstalled {
-                version: resolved,
-            });
+            return Err(ZzmError::AlreadyInstalled { version: resolved });
         }
 
         if already_installed && force {
@@ -84,11 +80,7 @@ impl ZlsManager {
         let cache_dir = self.path_manager.cache_dir();
         let archive_path = self
             .downloader
-            .download_to_cache(
-                &asset.browser_download_url,
-                &cache_dir,
-                &asset.name,
-            )
+            .download_to_cache(&asset.browser_download_url, &cache_dir, &asset.name)
             .await?;
 
         // 解压
@@ -139,17 +131,15 @@ impl ZlsManager {
         zig_version: &str,
         force: bool,
     ) -> Result<InstalledZlsVersion, ZzmError> {
-        let zls_info = self
-            .api_client
-            .find_compatible_version(zig_version)
-            .await?;
+        let zls_info = self.api_client.find_compatible_version(zig_version).await?;
 
         console_output::print_info(&format!(
             "为 Zig {} 找到兼容的 ZLS 版本: {}",
             zig_version, zls_info.version
         ));
 
-        self.install(&zls_info.version, Some(zig_version), force).await
+        self.install(&zls_info.version, Some(zig_version), force)
+            .await
     }
 
     /// 卸载指定版本
@@ -301,19 +291,20 @@ impl ZlsManager {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir()
-                    && let Ok(sub_entries) = std::fs::read_dir(&path) {
-                        for sub_entry in sub_entries.flatten() {
-                            let sub_path = sub_entry.path();
-                            if sub_path.is_file() {
-                                let name = sub_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                                if name == "zls" || name == "zls.exe" {
-                                    let dest = self.path_manager.zls_binary_path(version);
-                                    std::fs::copy(&sub_path, &dest).map_err(ZzmError::Io)?;
-                                    return Ok(());
-                                }
+                    && let Ok(sub_entries) = std::fs::read_dir(&path)
+                {
+                    for sub_entry in sub_entries.flatten() {
+                        let sub_path = sub_entry.path();
+                        if sub_path.is_file() {
+                            let name = sub_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                            if name == "zls" || name == "zls.exe" {
+                                let dest = self.path_manager.zls_binary_path(version);
+                                std::fs::copy(&sub_path, &dest).map_err(ZzmError::Io)?;
+                                return Ok(());
                             }
                         }
                     }
+                }
             }
         }
 
@@ -321,5 +312,158 @@ impl ZlsManager {
             path: version_dir.to_string_lossy().to_string(),
             reason: "未找到 ZLS 二进制文件".to_string(),
         })
+    }
+}
+
+// ========== 单元测试 ==========
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infra::path_manager::InstalledZlsVersion;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_zls_manager_creation() {
+        let platform = crate::platform::detect_platform();
+        let manager = ZlsManager::new(platform);
+        assert!(manager.is_ok());
+    }
+
+    #[test]
+    fn test_installed_zls_version_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let version = InstalledZlsVersion {
+            version: "0.13.0".to_string(),
+            install_path: temp_dir.path().to_path_buf(),
+            installed_at: "2026-04-25T10:00:00Z".to_string(),
+            zig_version: Some("0.13.0".to_string()),
+        };
+
+        assert_eq!(version.version, "0.13.0");
+        assert_eq!(version.zig_version, Some("0.13.0".to_string()));
+    }
+
+    #[test]
+    fn test_installed_zls_version_no_zig() {
+        let temp_dir = TempDir::new().unwrap();
+        let version = InstalledZlsVersion {
+            version: "0.13.0".to_string(),
+            install_path: temp_dir.path().to_path_buf(),
+            installed_at: "2026-04-25T10:00:00Z".to_string(),
+            zig_version: None,
+        };
+
+        assert!(version.zig_version.is_none());
+    }
+
+    #[test]
+    fn test_installed_zls_version_serialization() {
+        let temp_dir = TempDir::new().unwrap();
+        let version = InstalledZlsVersion {
+            version: "0.13.0".to_string(),
+            install_path: temp_dir.path().to_path_buf(),
+            installed_at: "2026-04-25T10:00:00Z".to_string(),
+            zig_version: Some("0.13.0".to_string()),
+        };
+
+        let json = serde_json::to_string_pretty(&version).unwrap();
+        let parsed: InstalledZlsVersion = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.version, "0.13.0");
+        assert_eq!(parsed.zig_version, Some("0.13.0".to_string()));
+    }
+
+    #[test]
+    fn test_reorganize_extracted_files_same_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let version_dir = temp_dir.path().join("0.13.0");
+        fs::create_dir_all(&version_dir).unwrap();
+
+        let platform = crate::platform::detect_platform();
+        let manager = ZlsManager::new(platform).unwrap();
+
+        let result = manager.reorganize_extracted_files(&version_dir, &version_dir);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_reorganize_extracted_files_subdirectory() {
+        let temp_dir = TempDir::new().unwrap();
+        let version_dir = temp_dir.path().join("0.13.0");
+        fs::create_dir_all(&version_dir).unwrap();
+
+        // 创建子目录（模拟解压后的结构）
+        let sub_dir = version_dir.join("zls-x86_64-windows-0.13.0");
+        fs::create_dir_all(&sub_dir).unwrap();
+        fs::write(sub_dir.join("zls.exe"), "binary").unwrap();
+
+        let platform = crate::platform::detect_platform();
+        let manager = ZlsManager::new(platform).unwrap();
+
+        let result = manager.reorganize_extracted_files(&sub_dir, &version_dir);
+        assert!(result.is_ok());
+
+        // 验证文件已移到 version_dir 根目录
+        assert!(version_dir.join("zls.exe").exists());
+    }
+
+    #[test]
+    fn test_find_and_link_zls_binary_not_found() {
+        let temp_dir = TempDir::new().unwrap();
+        let version_dir = temp_dir.path().join("0.13.0");
+        fs::create_dir_all(&version_dir).unwrap();
+
+        // 目录为空，应返回 ExtractionFailed
+        let platform = crate::platform::detect_platform();
+        let manager = ZlsManager::new(platform).unwrap();
+
+        let result = manager.find_and_link_zls_binary(&version_dir, "0.13.0");
+        assert!(result.is_err());
+        if let Err(ZzmError::ExtractionFailed { reason, .. }) = result {
+            assert!(reason.contains("未找到 ZLS 二进制文件"));
+        }
+    }
+
+    #[test]
+    fn test_find_and_link_zls_binary_found() {
+        // 测试 find_and_link_zls_binary 的文件搜索逻辑
+        // 注意：此方法会将找到的二进制复制到 path_manager 计算的路径，
+        // 该路径基于平台默认安装目录，不在 temp_dir 中。
+        // 因此这里仅验证方法在目录中有正确命名的文件时不会返回 "未找到" 错误。
+        let temp_dir = TempDir::new().unwrap();
+        let version_dir = temp_dir.path().join("0.13.0");
+        fs::create_dir_all(&version_dir).unwrap();
+
+        // 创建一个 zls 二进制文件（名称不带版本后缀）
+        #[cfg(target_os = "windows")]
+        let zls_name = "zls.exe";
+        #[cfg(not(target_os = "windows"))]
+        let zls_name = "zls";
+
+        fs::write(version_dir.join(zls_name), "binary").unwrap();
+
+        let platform = crate::platform::detect_platform();
+        let manager = ZlsManager::new(platform).unwrap();
+
+        let result = manager.find_and_link_zls_binary(&version_dir, "0.13.0");
+        // 该方法会尝试 copy 到 path_manager 计算的 zls_binary_path，
+        // 可能因目标目录不存在而失败。我们只验证文件搜索逻辑正确：
+        // 如果返回 ExtractionFailed 且原因包含"未找到"，则说明搜索逻辑有误
+        if let Err(ZzmError::ExtractionFailed { ref reason, .. }) = result {
+            assert!(
+                !reason.contains("未找到 ZLS 二进制文件"),
+                "应能找到 ZLS 二进制文件"
+            );
+        }
+        // 如果因为 IO 错误（目标目录不存在）导致失败，这是预期的
+    }
+
+    #[test]
+    fn test_zls_manager_list_installed_empty() {
+        let platform = crate::platform::detect_platform();
+        let manager = ZlsManager::new(platform).unwrap();
+        let result = manager.list_installed();
+        assert!(result.is_ok());
     }
 }

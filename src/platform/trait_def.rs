@@ -71,9 +71,7 @@ pub trait PlatformTrait: Send + Sync {
         if let Ok(path_var) = std::env::var("PATH") {
             let bin_dir = self.bin_dir();
             let separator = if cfg!(windows) { ';' } else { ':' };
-            path_var
-                .split(separator)
-                .any(|p| bin_dir == Path::new(p))
+            path_var.split(separator).any(|p| bin_dir == Path::new(p))
         } else {
             false
         }

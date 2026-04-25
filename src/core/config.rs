@@ -112,11 +112,10 @@ impl ConfigManager {
             reason: format!("无法读取配置文件: {}", e),
         })?;
 
-        let config: ZzmConfig =
-            toml::from_str(&content).map_err(|e| ZzmError::ConfigError {
-                path: path.display().to_string(),
-                reason: format!("配置文件格式错误: {}", e),
-            })?;
+        let config: ZzmConfig = toml::from_str(&content).map_err(|e| ZzmError::ConfigError {
+            path: path.display().to_string(),
+            reason: format!("配置文件格式错误: {}", e),
+        })?;
 
         Ok(config)
     }
@@ -127,18 +126,18 @@ impl ConfigManager {
 
         // 确保父目录存在
         if let Some(parent) = path.parent()
-            && !parent.exists() {
-                std::fs::create_dir_all(parent).map_err(|e| ZzmError::ConfigError {
-                    path: parent.display().to_string(),
-                    reason: format!("无法创建配置目录: {}", e),
-                })?;
-            }
-
-        let content =
-            toml::to_string_pretty(config).map_err(|e| ZzmError::ConfigError {
-                path: path.display().to_string(),
-                reason: format!("配置序列化失败: {}", e),
+            && !parent.exists()
+        {
+            std::fs::create_dir_all(parent).map_err(|e| ZzmError::ConfigError {
+                path: parent.display().to_string(),
+                reason: format!("无法创建配置目录: {}", e),
             })?;
+        }
+
+        let content = toml::to_string_pretty(config).map_err(|e| ZzmError::ConfigError {
+            path: path.display().to_string(),
+            reason: format!("配置序列化失败: {}", e),
+        })?;
 
         std::fs::write(&path, content).map_err(|e| ZzmError::ConfigError {
             path: path.display().to_string(),
@@ -178,20 +177,16 @@ impl ConfigManager {
         match key {
             "default_channel" => config.default_channel = Some(value.to_string()),
             "auto_install_zls" => {
-                config.auto_install_zls = value
-                    .parse()
-                    .map_err(|_| ZzmError::ConfigError {
-                        path: key.to_string(),
-                        reason: format!("期望布尔值，得到 '{}'", value),
-                    })?;
+                config.auto_install_zls = value.parse().map_err(|_| ZzmError::ConfigError {
+                    path: key.to_string(),
+                    reason: format!("期望布尔值，得到 '{}'", value),
+                })?;
             }
             "auto_use" => {
-                config.auto_use = value
-                    .parse()
-                    .map_err(|_| ZzmError::ConfigError {
-                        path: key.to_string(),
-                        reason: format!("期望布尔值，得到 '{}'", value),
-                    })?;
+                config.auto_use = value.parse().map_err(|_| ZzmError::ConfigError {
+                    path: key.to_string(),
+                    reason: format!("期望布尔值，得到 '{}'", value),
+                })?;
             }
             "mirror_url" => config.mirror_url = Some(value.to_string()),
             "install_dir" => config.install_dir = Some(value.to_string()),
@@ -202,37 +197,31 @@ impl ConfigManager {
                 })?;
             }
             "verify_ssl" => {
-                config.verify_ssl = value
-                    .parse()
-                    .map_err(|_| ZzmError::ConfigError {
-                        path: key.to_string(),
-                        reason: format!("期望布尔值，得到 '{}'", value),
-                    })?;
+                config.verify_ssl = value.parse().map_err(|_| ZzmError::ConfigError {
+                    path: key.to_string(),
+                    reason: format!("期望布尔值，得到 '{}'", value),
+                })?;
             }
             "ide.vscode_auto_update" => {
-                config.ide.vscode_auto_update = value
-                    .parse()
-                    .map_err(|_| ZzmError::ConfigError {
+                config.ide.vscode_auto_update =
+                    value.parse().map_err(|_| ZzmError::ConfigError {
                         path: key.to_string(),
                         reason: format!("期望布尔值，得到 '{}'", value),
                     })?;
             }
             "ide.vscode_set_zls_path" => {
-                config.ide.vscode_set_zls_path = value
-                    .parse()
-                    .map_err(|_| ZzmError::ConfigError {
+                config.ide.vscode_set_zls_path =
+                    value.parse().map_err(|_| ZzmError::ConfigError {
                         path: key.to_string(),
                         reason: format!("期望布尔值，得到 '{}'", value),
                     })?;
             }
-            "ide.vscode_settings_path" => {
-                config.ide.vscode_settings_path = Some(value.to_string())
-            }
+            "ide.vscode_settings_path" => config.ide.vscode_settings_path = Some(value.to_string()),
             _ => {
                 return Err(ZzmError::ConfigError {
                     path: key.to_string(),
                     reason: format!("未知的配置项: {}", key),
-                })
+                });
             }
         }
 
@@ -306,9 +295,11 @@ mod tests {
 
     #[test]
     fn test_config_serialization() {
-        let mut config = ZzmConfig::default();
-        config.default_channel = Some("stable".to_string());
-        config.auto_install_zls = true;
+        let config = ZzmConfig {
+            default_channel: Some("stable".to_string()),
+            auto_install_zls: true,
+            ..Default::default()
+        };
 
         let toml_str = toml::to_string_pretty(&config).unwrap();
         assert!(toml_str.contains("default_channel = \"stable\""));
@@ -317,5 +308,120 @@ mod tests {
         let parsed: ZzmConfig = toml::from_str(&toml_str).unwrap();
         assert_eq!(parsed.default_channel, Some("stable".to_string()));
         assert!(parsed.auto_install_zls);
+    }
+
+    #[test]
+    fn test_ide_config_default() {
+        let ide = IdeConfig::default();
+        assert!(!ide.vscode_auto_update);
+        // Note: vscode_set_zls_path uses default_true() for serde deserialization,
+        // but Default derive sets it to false. This is a known design trade-off.
+        assert!(!ide.vscode_set_zls_path);
+        assert!(ide.vscode_settings_path.is_none());
+    }
+
+    #[test]
+    fn test_ide_config_deserialization_default() {
+        // When deserializing from TOML, default_true() should apply
+        let toml_str = "";
+        let ide: IdeConfig = toml::from_str(toml_str).unwrap();
+        assert!(!ide.vscode_auto_update);
+        assert!(ide.vscode_set_zls_path); // default_true() takes effect on deserialization
+        assert!(ide.vscode_settings_path.is_none());
+    }
+
+    #[test]
+    fn test_config_with_mirror_url() {
+        let config = ZzmConfig {
+            mirror_url: Some("https://mirror.example.com/zig".to_string()),
+            ..Default::default()
+        };
+
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        assert!(toml_str.contains("mirror_url = \"https://mirror.example.com/zig\""));
+
+        let parsed: ZzmConfig = toml::from_str(&toml_str).unwrap();
+        assert_eq!(
+            parsed.mirror_url,
+            Some("https://mirror.example.com/zig".to_string())
+        );
+    }
+
+    #[test]
+    fn test_config_with_install_dir() {
+        let config = ZzmConfig {
+            install_dir: Some("/opt/zig".to_string()),
+            ..Default::default()
+        };
+
+        let parsed: ZzmConfig = toml::from_str(&toml::to_string_pretty(&config).unwrap()).unwrap();
+        assert_eq!(parsed.install_dir, Some("/opt/zig".to_string()));
+    }
+
+    #[test]
+    fn test_config_parallel_downloads_default() {
+        let config = ZzmConfig::default();
+        assert_eq!(config.parallel_downloads, 4);
+    }
+
+    #[test]
+    fn test_config_verify_ssl_default() {
+        let config = ZzmConfig::default();
+        assert!(config.verify_ssl);
+    }
+
+    #[test]
+    fn test_ide_config_serialization() {
+        let ide = IdeConfig {
+            vscode_auto_update: true,
+            vscode_settings_path: Some("/custom/path/settings.json".to_string()),
+            ..Default::default()
+        };
+
+        let json = serde_json::to_string(&ide).unwrap();
+        let parsed: IdeConfig = serde_json::from_str(&json).unwrap();
+        assert!(parsed.vscode_auto_update);
+        assert_eq!(
+            parsed.vscode_settings_path,
+            Some("/custom/path/settings.json".to_string())
+        );
+    }
+
+    #[test]
+    fn test_config_all_fields_set() {
+        let config = ZzmConfig {
+            default_channel: Some("nightly".to_string()),
+            auto_install_zls: true,
+            auto_use: true,
+            mirror_url: Some("https://mirror.example.com".to_string()),
+            install_dir: Some("/opt/zzm".to_string()),
+            parallel_downloads: 8,
+            verify_ssl: false,
+            ide: IdeConfig {
+                vscode_auto_update: true,
+                vscode_set_zls_path: false,
+                vscode_settings_path: Some("/custom/path".to_string()),
+            },
+        };
+
+        let toml_str = toml::to_string_pretty(&config).unwrap();
+        let parsed: ZzmConfig = toml::from_str(&toml_str).unwrap();
+
+        assert_eq!(parsed.default_channel, Some("nightly".to_string()));
+        assert!(parsed.auto_install_zls);
+        assert!(parsed.auto_use);
+        assert_eq!(parsed.parallel_downloads, 8);
+        assert!(!parsed.verify_ssl);
+        assert!(parsed.ide.vscode_auto_update);
+        assert!(!parsed.ide.vscode_set_zls_path);
+    }
+
+    #[test]
+    fn test_config_toml_minimal() {
+        // 测试从最小化的 TOML 解析
+        let toml_str = "";
+        let config: ZzmConfig = toml::from_str(toml_str).unwrap();
+        assert!(!config.auto_install_zls);
+        assert_eq!(config.parallel_downloads, 4);
     }
 }

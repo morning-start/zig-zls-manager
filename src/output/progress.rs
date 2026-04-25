@@ -15,7 +15,7 @@ impl DownloadProgress {
         bar.set_style(
             ProgressStyle::default_bar()
                 .template(
-                    "{spinner:.green} {msg} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})"
+                    "{spinner:.green} {msg} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})",
                 )
                 .unwrap_or_else(|_| ProgressStyle::default_bar())
                 .progress_chars("█▓░"),

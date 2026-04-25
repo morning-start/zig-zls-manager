@@ -61,7 +61,6 @@ mod tests {
     #[test]
     fn test_calculate_sha256_binary_data() {
         let data = vec![0u8, 1, 2, 3, 255, 254, 253];
-        let expected = "d3e4c3a8c0a0b7e8d5e5a0b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8";
         let actual = calculate_sha256(&data);
         // 计算实际的哈希值
         let mut hasher = Sha256::new();

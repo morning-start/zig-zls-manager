@@ -45,11 +45,9 @@ impl IdeManager {
     /// 获取当前 Zig 可执行文件路径
     pub fn zig_binary_path(&self) -> Result<PathBuf, ZzmError> {
         let index = self.path_manager.read_installed_index()?;
-        let active = index
-            .active_zig
-            .ok_or_else(|| ZzmError::NotInstalled {
-                version: "zig (no active version)".to_string(),
-            })?;
+        let active = index.active_zig.ok_or_else(|| ZzmError::NotInstalled {
+            version: "zig (no active version)".to_string(),
+        })?;
 
         let version = index
             .zig_versions
@@ -74,11 +72,9 @@ impl IdeManager {
     /// 获取当前 ZLS 可执行文件路径
     pub fn zls_binary_path(&self) -> Result<PathBuf, ZzmError> {
         let index = self.path_manager.read_installed_index()?;
-        let active = index
-            .active_zls
-            .ok_or_else(|| ZzmError::NotInstalled {
-                version: "zls (no active version)".to_string(),
-            })?;
+        let active = index.active_zls.ok_or_else(|| ZzmError::NotInstalled {
+            version: "zls (no active version)".to_string(),
+        })?;
 
         let version = index
             .zls_versions
@@ -138,12 +134,11 @@ impl IdeManager {
 
         // 读取现有 settings.json
         let mut settings = if settings_path.exists() {
-            let content = std::fs::read_to_string(&settings_path).map_err(|e| {
-                ZzmError::ConfigError {
+            let content =
+                std::fs::read_to_string(&settings_path).map_err(|e| ZzmError::ConfigError {
                     path: settings_path.display().to_string(),
                     reason: format!("无法读取: {}", e),
-                }
-            })?;
+                })?;
 
             // 处理 VS Code settings.json 可能有注释的情况
             let cleaned = clean_jsonc(&content);
@@ -180,22 +175,18 @@ impl IdeManager {
         }
 
         // 写回文件
-        let json_content = serde_json::to_string_pretty(&settings).map_err(|e| {
-            ZzmError::ConfigError {
+        let json_content =
+            serde_json::to_string_pretty(&settings).map_err(|e| ZzmError::ConfigError {
                 path: settings_path.display().to_string(),
                 reason: format!("序列化失败: {}", e),
-            }
-        })?;
+            })?;
 
         std::fs::write(&settings_path, json_content).map_err(|e| ZzmError::ConfigError {
             path: settings_path.display().to_string(),
             reason: format!("无法写入: {}", e),
         })?;
 
-        console_output::print_success(&format!(
-            "VS Code 配置已更新: {}",
-            settings_path.display()
-        ));
+        console_output::print_success(&format!("VS Code 配置已更新: {}", settings_path.display()));
         Ok(())
     }
 
@@ -209,14 +200,14 @@ impl IdeManager {
             return Ok(());
         }
 
-        let content = std::fs::read_to_string(&settings_path).map_err(|e| ZzmError::ConfigError {
-            path: settings_path.display().to_string(),
-            reason: format!("无法读取: {}", e),
-        })?;
+        let content =
+            std::fs::read_to_string(&settings_path).map_err(|e| ZzmError::ConfigError {
+                path: settings_path.display().to_string(),
+                reason: format!("无法读取: {}", e),
+            })?;
 
         let cleaned = clean_jsonc(&content);
-        let mut settings: VsCodeSettings =
-            serde_json::from_str(&cleaned).unwrap_or_default();
+        let mut settings: VsCodeSettings = serde_json::from_str(&cleaned).unwrap_or_default();
 
         let mut changed = false;
 
@@ -233,12 +224,11 @@ impl IdeManager {
         }
 
         if changed {
-            let json_content = serde_json::to_string_pretty(&settings).map_err(|e| {
-                ZzmError::ConfigError {
+            let json_content =
+                serde_json::to_string_pretty(&settings).map_err(|e| ZzmError::ConfigError {
                     path: settings_path.display().to_string(),
                     reason: format!("序列化失败: {}", e),
-                }
-            })?;
+                })?;
 
             std::fs::write(&settings_path, json_content).map_err(|e| ZzmError::ConfigError {
                 path: settings_path.display().to_string(),
@@ -296,8 +286,6 @@ fn clean_jsonc(content: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use tempfile::TempDir;
 
     #[test]
     fn test_clean_jsonc() {
@@ -375,5 +363,105 @@ mod tests {
         assert!(cleaned.contains("value with \\\"escaped\\\" quotes"));
         assert!(!cleaned.contains("comment"));
     }
-}
 
+    #[test]
+    fn test_vs_code_settings_with_other_fields() {
+        // 测试 VsCodeSettings 保留其他字段
+        let json = r#"{
+            "zig.path": "/path/to/zig",
+            "zig.zls.path": "/path/to/zls",
+            "editor.fontSize": 14,
+            "workbench.colorTheme": "Dark+"
+        }"#;
+
+        let settings: VsCodeSettings = serde_json::from_str(json).unwrap();
+        assert_eq!(settings.zig_path, Some("/path/to/zig".to_string()));
+        assert_eq!(settings.zls_path, Some("/path/to/zls".to_string()));
+        assert_eq!(settings.other.len(), 2);
+        assert!(settings.other.contains_key("editor.fontSize"));
+        assert!(settings.other.contains_key("workbench.colorTheme"));
+    }
+
+    #[test]
+    fn test_vs_code_settings_only_other_fields() {
+        let json = r#"{
+            "editor.fontSize": 14
+        }"#;
+
+        let settings: VsCodeSettings = serde_json::from_str(json).unwrap();
+        assert!(settings.zig_path.is_none());
+        assert!(settings.zls_path.is_none());
+        assert_eq!(settings.other.len(), 1);
+    }
+
+    #[test]
+    fn test_vs_code_settings_roundtrip_preserves_other() {
+        let mut other = serde_json::Map::new();
+        other.insert(
+            "editor.fontSize".to_string(),
+            serde_json::Value::Number(14.into()),
+        );
+        let settings = VsCodeSettings {
+            zig_path: Some("/path/to/zig".to_string()),
+            zls_path: None,
+            other,
+        };
+
+        let json = serde_json::to_string_pretty(&settings).unwrap();
+        let parsed: VsCodeSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.zig_path, Some("/path/to/zig".to_string()));
+        assert_eq!(parsed.other.len(), 1);
+    }
+
+    #[test]
+    fn test_clean_jsonc_no_comments() {
+        let content = r#"{"key": "value"}"#;
+        let cleaned = clean_jsonc(content);
+        assert_eq!(cleaned, content);
+    }
+
+    #[test]
+    fn test_clean_jsonc_multiple_comments() {
+        let content = r#"{
+    // first comment
+    "key1": "value1",
+    // second comment
+    "key2": "value2"
+}"#;
+
+        let cleaned = clean_jsonc(content);
+        assert!(!cleaned.contains("first comment"));
+        assert!(!cleaned.contains("second comment"));
+        assert!(cleaned.contains("value1"));
+        assert!(cleaned.contains("value2"));
+    }
+
+    #[test]
+    fn test_clean_jsonc_comment_inside_string_preserved() {
+        // 确保字符串内的 // 不被误删
+        let content = r#"{
+    "url": "https://example.com/path",
+    "zig.path": "/usr/bin/zig"
+}"#;
+
+        let cleaned = clean_jsonc(content);
+        assert!(cleaned.contains("https://example.com/path"));
+    }
+
+    #[test]
+    fn test_ide_manager_creation() {
+        let platform = crate::platform::detect_platform();
+        let manager = IdeManager::new(platform);
+        // IdeManager 创建应成功（不依赖已安装的版本）
+        let _ = manager;
+    }
+
+    #[test]
+    fn test_vs_code_settings_empty_json() {
+        let json = "{}";
+        let settings: VsCodeSettings = serde_json::from_str(json).unwrap();
+        assert!(settings.zig_path.is_none());
+        assert!(settings.zls_path.is_none());
+        assert!(settings.other.is_empty());
+    }
+}

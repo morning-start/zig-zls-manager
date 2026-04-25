@@ -3,10 +3,15 @@ use clap::{Parser, Subcommand};
 /// Zig/ZLS Version Manager - 专业级的 Zig + ZLS 联合版本管理工具
 #[derive(Parser)]
 #[command(name = "zzm")]
-#[command(about = "Zig/ZLS Version Manager", long_about = "专业级的 Zig + ZLS 联合版本管理 CLI 工具\n\n管理 Zig 编译器和 ZLS 语言服务器的版本，\n支持智能兼容性检查、项目级配置和 IDE 集成。")]
+#[command(
+    about = "Zig/ZLS Version Manager",
+    long_about = "专业级的 Zig + ZLS 联合版本管理 CLI 工具\n\n管理 Zig 编译器和 ZLS 语言服务器的版本，\n支持智能兼容性检查、项目级配置和 IDE 集成。"
+)]
 #[command(version)]
 #[command(propagate_version = true)]
-#[command(after_help = "示例:\n  zzm install 0.13.0          安装 Zig 0.13.0\n  zzm install 0.13.0 --with-zls  同时安装匹配的 ZLS\n  zzm list --remote            查看远程可用版本\n  zzm use 0.13.0               切换到 Zig 0.13.0\n  zzm info                     显示当前环境信息")]
+#[command(
+    after_help = "示例:\n  zzm install 0.13.0          安装 Zig 0.13.0\n  zzm install 0.13.0 --with-zls  同时安装匹配的 ZLS\n  zzm list --remote            查看远程可用版本\n  zzm use 0.13.0               切换到 Zig 0.13.0\n  zzm info                     显示当前环境信息"
+)]
 pub struct Cli {
     /// 禁用彩色输出
     #[arg(long, global = true)]

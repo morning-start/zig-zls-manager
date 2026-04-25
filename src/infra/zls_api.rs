@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::Client;
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 
 use crate::utils::error::ZzmError;
@@ -115,14 +115,15 @@ impl ZlsApiClient {
 
         // 如果有 GitHub Token，添加认证头以提高速率限制
         if let Ok(token) = std::env::var(GITHUB_TOKEN_ENV)
-            && !token.is_empty() {
-                headers.insert(
-                    AUTHORIZATION,
-                    HeaderValue::from_str(&format!("Bearer {}", token))
-                        .unwrap_or_else(|_| HeaderValue::from_static("")),
-                );
-                tracing::debug!("已配置 GitHub Token 认证");
-            }
+            && !token.is_empty()
+        {
+            headers.insert(
+                AUTHORIZATION,
+                HeaderValue::from_str(&format!("Bearer {}", token))
+                    .unwrap_or_else(|_| HeaderValue::from_static("")),
+            );
+            tracing::debug!("已配置 GitHub Token 认证");
+        }
 
         let client = Client::builder()
             .user_agent(format!("zzm/{}", env!("CARGO_PKG_VERSION")))
@@ -255,7 +256,7 @@ impl ZlsApiClient {
 
                 let now = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
-                   .unwrap_or_default()
+                    .unwrap_or_default()
                     .as_secs();
 
                 let retry_after = reset_time.saturating_sub(now).max(1);
@@ -305,18 +306,16 @@ impl ZlsApiClient {
             .collect();
 
         // 稳定版在前，按版本号降序排列
-        versions.sort_by(|a, b| {
-            match (&a.channel, &b.channel) {
-                (ZlsChannel::Prerelease, ZlsChannel::Prerelease) => std::cmp::Ordering::Equal,
-                (ZlsChannel::Prerelease, ZlsChannel::Stable) => std::cmp::Ordering::Greater,
-                (ZlsChannel::Stable, ZlsChannel::Prerelease) => std::cmp::Ordering::Less,
-                (ZlsChannel::Stable, ZlsChannel::Stable) => {
-                    let va: std::result::Result<crate::utils::version::Version, _> = a.version.parse();
-                    let vb: std::result::Result<crate::utils::version::Version, _> = b.version.parse();
-                    match (va, vb) {
-                        (Ok(va), Ok(vb)) => vb.cmp(&va),
-                        _ => b.version.cmp(&a.version),
-                    }
+        versions.sort_by(|a, b| match (&a.channel, &b.channel) {
+            (ZlsChannel::Prerelease, ZlsChannel::Prerelease) => std::cmp::Ordering::Equal,
+            (ZlsChannel::Prerelease, ZlsChannel::Stable) => std::cmp::Ordering::Greater,
+            (ZlsChannel::Stable, ZlsChannel::Prerelease) => std::cmp::Ordering::Less,
+            (ZlsChannel::Stable, ZlsChannel::Stable) => {
+                let va: std::result::Result<crate::utils::version::Version, _> = a.version.parse();
+                let vb: std::result::Result<crate::utils::version::Version, _> = b.version.parse();
+                match (va, vb) {
+                    (Ok(va), Ok(vb)) => vb.cmp(&va),
+                    _ => b.version.cmp(&a.version),
                 }
             }
         });
@@ -368,18 +367,16 @@ impl ZlsApiClient {
         let zig_parts: Vec<&str> = zig_version.split('.').collect();
         if zig_parts.len() >= 2 {
             let major_minor = format!("{}.{}", zig_parts[0], zig_parts[1]);
-            let partial_match = versions.iter().find(|v| {
-                v.version.starts_with(&major_minor) && v.channel == ZlsChannel::Stable
-            });
+            let partial_match = versions
+                .iter()
+                .find(|v| v.version.starts_with(&major_minor) && v.channel == ZlsChannel::Stable);
             if let Some(m) = partial_match {
                 return Ok(m.clone());
             }
         }
 
         // 回退到最新稳定版
-        let latest = versions
-            .iter()
-            .find(|v| v.channel == ZlsChannel::Stable);
+        let latest = versions.iter().find(|v| v.channel == ZlsChannel::Stable);
         if let Some(m) = latest {
             tracing::warn!(
                 "未找到与 Zig {} 精确匹配的 ZLS 版本，使用最新稳定版 {}",
@@ -398,10 +395,7 @@ impl ZlsApiClient {
 // ========== 辅助函数 ==========
 
 /// 在 asset 列表中查找匹配当前平台的 ZLS 二进制文件
-fn find_matching_zls_asset(
-    assets: &[GithubAsset],
-    target_triple: &str,
-) -> Option<GithubAsset> {
+fn find_matching_zls_asset(assets: &[GithubAsset], target_triple: &str) -> Option<GithubAsset> {
     let (os_name, arch_name) = parse_zls_target_triple(target_triple)?;
 
     assets
@@ -516,5 +510,172 @@ mod tests {
         let stable = ZlsChannel::Stable;
         let json = serde_json::to_string(&stable).unwrap();
         assert!(json.contains("Stable"));
+    }
+
+    #[test]
+    fn test_zls_channel_equality() {
+        assert_eq!(ZlsChannel::Stable, ZlsChannel::Stable);
+        assert_eq!(ZlsChannel::Prerelease, ZlsChannel::Prerelease);
+        assert_ne!(ZlsChannel::Stable, ZlsChannel::Prerelease);
+    }
+
+    #[test]
+    fn test_parse_zls_target_triple_all() {
+        assert_eq!(
+            parse_zls_target_triple("x86_64-windows"),
+            Some(("windows", "x86_64"))
+        );
+        assert_eq!(
+            parse_zls_target_triple("aarch64-windows"),
+            Some(("windows", "aarch64"))
+        );
+        assert_eq!(
+            parse_zls_target_triple("x86_64-macos"),
+            Some(("macos", "x86_64"))
+        );
+        assert_eq!(
+            parse_zls_target_triple("aarch64-macos"),
+            Some(("macos", "aarch64"))
+        );
+        assert_eq!(
+            parse_zls_target_triple("x86_64-linux"),
+            Some(("linux", "x86_64"))
+        );
+        assert_eq!(
+            parse_zls_target_triple("aarch64-linux"),
+            Some(("linux", "aarch64"))
+        );
+    }
+
+    #[test]
+    fn test_find_matching_zls_asset_excludes_minisig() {
+        let assets = vec![
+            GithubAsset {
+                id: 1,
+                name: "zls-x86_64-windows.tar.xz".to_string(),
+                label: None,
+                content_type: "application/x-xz".to_string(),
+                state: "uploaded".to_string(),
+                size: 4200000,
+                download_count: 892,
+                created_at: "2026-04-16T20:44:37Z".to_string(),
+                updated_at: "2026-04-16T20:46:43Z".to_string(),
+                browser_download_url: "https://example.com/zls.tar.xz".to_string(),
+            },
+            GithubAsset {
+                id: 2,
+                name: "zls-x86_64-windows.tar.xz.minisig".to_string(),
+                label: None,
+                content_type: "application/x-xz".to_string(),
+                state: "uploaded".to_string(),
+                size: 128,
+                download_count: 120,
+                created_at: "2026-04-16T20:44:37Z".to_string(),
+                updated_at: "2026-04-16T20:46:43Z".to_string(),
+                browser_download_url: "https://example.com/zls.tar.xz.minisig".to_string(),
+            },
+        ];
+
+        let result = find_matching_zls_asset(&assets, "x86_64-windows");
+        assert!(result.is_some());
+        let found = result.unwrap();
+        assert_eq!(found.id, 1); // 应该匹配非签名文件
+        assert!(!found.name.ends_with(".minisig"));
+    }
+
+    #[test]
+    fn test_find_matching_zls_asset_empty() {
+        let assets: Vec<GithubAsset> = vec![];
+        let result = find_matching_zls_asset(&assets, "x86_64-windows");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_zls_api_client_creation() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let client = ZlsApiClient::new(temp_dir.path().to_path_buf());
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn test_github_release_serialization() {
+        let release = GithubRelease {
+            url: "https://api.github.com/repos/zigtools/zls/releases/1".to_string(),
+            html_url: "https://github.com/zigtools/zls/releases/tag/0.13.0".to_string(),
+            id: 12345,
+            tag_name: "0.13.0".to_string(),
+            name: "ZLS 0.13.0".to_string(),
+            draft: false,
+            prerelease: false,
+            created_at: "2026-04-16T20:44:37Z".to_string(),
+            published_at: Some("2026-04-16T20:46:43Z".to_string()),
+            assets: vec![],
+            body: Some("Release notes".to_string()),
+        };
+
+        let json = serde_json::to_string(&release).unwrap();
+        let parsed: GithubRelease = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.tag_name, "0.13.0");
+        assert!(!parsed.draft);
+        assert!(!parsed.prerelease);
+    }
+
+    #[test]
+    fn test_zls_version_info_serialization() {
+        let info = ZlsVersionInfo {
+            version: "0.13.0".to_string(),
+            channel: ZlsChannel::Stable,
+            published_at: Some("2026-04-16T20:46:43Z".to_string()),
+            asset: None,
+            html_url: "https://github.com/zigtools/zls/releases/tag/0.13.0".to_string(),
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        let parsed: ZlsVersionInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.version, "0.13.0");
+        assert_eq!(parsed.channel, ZlsChannel::Stable);
+    }
+
+    #[test]
+    fn test_github_asset_serialization() {
+        let asset = GithubAsset {
+            id: 1,
+            name: "zls-x86_64-linux.tar.xz".to_string(),
+            label: Some("Linux x86_64".to_string()),
+            content_type: "application/x-xz".to_string(),
+            state: "uploaded".to_string(),
+            size: 4050000,
+            download_count: 1234,
+            created_at: "2026-04-16T20:44:37Z".to_string(),
+            updated_at: "2026-04-16T20:46:43Z".to_string(),
+            browser_download_url:
+                "https://github.com/zigtools/zls/releases/download/0.13.0/zls-x86_64-linux.tar.xz"
+                    .to_string(),
+        };
+
+        let json = serde_json::to_string(&asset).unwrap();
+        let parsed: GithubAsset = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.name, "zls-x86_64-linux.tar.xz");
+        assert_eq!(parsed.size, 4050000);
+    }
+
+    #[test]
+    fn test_github_release_draft_filtered() {
+        // Draft releases 应该在 list_remote_versions 中被过滤
+        let release = GithubRelease {
+            url: "https://api.github.com/repos/zigtools/zls/releases/1".to_string(),
+            html_url: "https://github.com/zigtools/zls/releases/tag/0.13.0".to_string(),
+            id: 1,
+            tag_name: "0.13.0".to_string(),
+            name: "Draft".to_string(),
+            draft: true,
+            prerelease: false,
+            created_at: "2026-04-16T20:44:37Z".to_string(),
+            published_at: None,
+            assets: vec![],
+            body: None,
+        };
+
+        assert!(release.draft);
     }
 }

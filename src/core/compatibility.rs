@@ -64,8 +64,7 @@ impl CompatibilityChecker {
                     return CompatibilityStatus::LikelyCompatible {
                         reason: format!(
                             "Zig {}.{}.{} 与 ZLS {}.{}.{} 次版本号匹配，补丁版本不同",
-                            zig.major, zig.minor, zig.patch,
-                            zls.major, zls.minor, zls.patch
+                            zig.major, zig.minor, zig.patch, zls.major, zls.minor, zls.patch
                         ),
                     };
                 }
@@ -74,16 +73,12 @@ impl CompatibilityChecker {
                 CompatibilityStatus::Incompatible {
                     reason: format!(
                         "Zig {}.{}.{} 与 ZLS {}.{}.{} 版本号不匹配",
-                        zig.major, zig.minor, zig.patch,
-                        zls.major, zls.minor, zls.patch
+                        zig.major, zig.minor, zig.patch, zls.major, zls.minor, zls.patch
                     ),
                 }
             }
             _ => CompatibilityStatus::Unknown {
-                reason: format!(
-                    "无法解析版本号: Zig={}, ZLS={}",
-                    zig_version, zls_version
-                ),
+                reason: format!("无法解析版本号: Zig={}, ZLS={}", zig_version, zls_version),
             },
         }
     }
@@ -177,7 +172,10 @@ mod tests {
     #[test]
     fn test_minor_match_likely_compatible() {
         let status = CompatibilityChecker::check("0.13.0", "0.13.1");
-        assert!(matches!(status, CompatibilityStatus::LikelyCompatible { .. }));
+        assert!(matches!(
+            status,
+            CompatibilityStatus::LikelyCompatible { .. }
+        ));
     }
 
     #[test]
@@ -208,5 +206,84 @@ mod tests {
             CompatibilityChecker::recommended_zls_version("master"),
             Some("master".to_string())
         );
+    }
+
+    #[test]
+    fn test_nightly_zls_with_stable_zig() {
+        // ZLS nightly 通常兼容最新的 Zig 稳定版
+        let status = CompatibilityChecker::check("0.13.0", "master");
+        assert!(matches!(
+            status,
+            CompatibilityStatus::LikelyCompatible { .. }
+        ));
+    }
+
+    #[test]
+    fn test_stable_zig_with_nightly_zls() {
+        let status = CompatibilityChecker::check("0.13.0", "nightly");
+        assert!(matches!(
+            status,
+            CompatibilityStatus::LikelyCompatible { .. }
+        ));
+    }
+
+    #[test]
+    fn test_minor_version_mismatch() {
+        // 次版本号不匹配 → 不兼容
+        let status = CompatibilityChecker::check("0.13.0", "0.14.0");
+        assert!(matches!(status, CompatibilityStatus::Incompatible { .. }));
+    }
+
+    #[test]
+    fn test_v_prefix_version() {
+        // 支持 v 前缀的版本号
+        let status = CompatibilityChecker::check("v0.13.0", "v0.13.0");
+        assert_eq!(status, CompatibilityStatus::Compatible);
+    }
+
+    #[test]
+    fn test_two_part_version() {
+        // 两段版本号（如 0.13）
+        let status = CompatibilityChecker::check("0.13", "0.13.0");
+        assert_eq!(status, CompatibilityStatus::Compatible);
+    }
+
+    #[test]
+    fn test_unparseable_version() {
+        // 无法解析的版本号 → Unknown
+        let status = CompatibilityChecker::check("abc", "0.13.0");
+        assert!(matches!(status, CompatibilityStatus::Unknown { .. }));
+    }
+
+    #[test]
+    fn test_recommended_zls_version_nightly() {
+        assert_eq!(
+            CompatibilityChecker::recommended_zls_version("nightly"),
+            Some("master".to_string())
+        );
+    }
+
+    #[test]
+    fn test_recommended_zls_version_two_part() {
+        assert_eq!(
+            CompatibilityChecker::recommended_zls_version("0.13"),
+            Some("0.13.0".to_string())
+        );
+    }
+
+    #[test]
+    fn test_patch_difference_likely_compatible() {
+        let status = CompatibilityChecker::check("0.13.1", "0.13.2");
+        assert!(matches!(
+            status,
+            CompatibilityStatus::LikelyCompatible { .. }
+        ));
+    }
+
+    #[test]
+    fn test_compatible_status_debug() {
+        let status = CompatibilityStatus::Compatible;
+        let debug_str = format!("{:?}", status);
+        assert!(debug_str.contains("Compatible"));
     }
 }

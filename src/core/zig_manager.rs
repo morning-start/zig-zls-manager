@@ -59,23 +59,19 @@ impl ZigManager {
         // 获取版本信息
         let version_info = self.api_client.get_version_info(&resolved).await?;
 
-        let asset = version_info.asset.as_ref().ok_or_else(|| {
-            ZzmError::VersionNotFound {
+        let asset = version_info
+            .asset
+            .as_ref()
+            .ok_or_else(|| ZzmError::VersionNotFound {
                 version: format!("{} (当前平台无匹配的二进制)", resolved),
-            }
-        })?;
+            })?;
 
         // 检查是否已安装
         let index = self.path_manager.read_installed_index()?;
-        let already_installed = index
-            .zig_versions
-            .iter()
-            .any(|v| v.version == resolved);
+        let already_installed = index.zig_versions.iter().any(|v| v.version == resolved);
 
         if already_installed && !force {
-            return Err(ZzmError::AlreadyInstalled {
-                version: resolved,
-            });
+            return Err(ZzmError::AlreadyInstalled { version: resolved });
         }
 
         // 如果强制安装，先卸载旧版本
@@ -303,8 +299,8 @@ mod tests {
     use super::*;
     use crate::infra::path_manager::InstalledZigVersion;
     use crate::utils::version::Version;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_zig_manager_creation() {
@@ -388,5 +384,63 @@ mod tests {
         assert!(v1 < v2);
         assert!(v3 < v1);
         assert!(v1 < v4);
+    }
+
+    #[test]
+    fn test_reorganize_extracted_files_subdirectory() {
+        let temp_dir = TempDir::new().unwrap();
+        let version_dir = temp_dir.path().join("0.13.0");
+        fs::create_dir_all(&version_dir).unwrap();
+
+        // 创建子目录（模拟解压后的结构）
+        let sub_dir = version_dir.join("zig-x86_64-windows-0.13.0");
+        fs::create_dir_all(&sub_dir).unwrap();
+        fs::write(sub_dir.join("zig.exe"), "binary").unwrap();
+
+        let platform = crate::platform::detect_platform();
+        let manager = ZigManager::new(platform).unwrap();
+
+        let result = manager.reorganize_extracted_files(&sub_dir, &version_dir, "0.13.0");
+        assert!(result.is_ok());
+
+        // 验证文件已移到 version_dir 根目录
+        assert!(version_dir.join("zig.exe").exists());
+    }
+
+    #[test]
+    fn test_installed_zig_version_serialization() {
+        let temp_dir = TempDir::new().unwrap();
+        let version = InstalledZigVersion {
+            version: "0.13.0".to_string(),
+            install_path: temp_dir.path().to_path_buf(),
+            installed_at: "2026-04-25T10:00:00Z".to_string(),
+            channel: "stable".to_string(),
+        };
+
+        let json = serde_json::to_string_pretty(&version).unwrap();
+        let parsed: InstalledZigVersion = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.version, "0.13.0");
+        assert_eq!(parsed.channel, "stable");
+    }
+
+    #[test]
+    fn test_zig_manager_list_installed_empty() {
+        let platform = crate::platform::detect_platform();
+        let manager = ZigManager::new(platform).unwrap();
+        // 在未初始化的环境中，list_installed 应返回默认空列表
+        let result = manager.list_installed();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_installed_zig_version_nightly_channel() {
+        let temp_dir = TempDir::new().unwrap();
+        let version = InstalledZigVersion {
+            version: "master".to_string(),
+            install_path: temp_dir.path().to_path_buf(),
+            installed_at: "2026-04-25T10:00:00Z".to_string(),
+            channel: "nightly".to_string(),
+        };
+        assert_eq!(version.channel, "nightly");
     }
 }

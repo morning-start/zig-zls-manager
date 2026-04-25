@@ -7,7 +7,7 @@
 - **当前阶段**: Phase 1 - MVP (v0.1.0) — Sprint 0-5 核心功能完成，测试与发布准备中
 - **关联文档**: [ROADMAP.md](./ROADMAP.md), [architecture.md](./architecture.md)
 - **编译状态**: ✅ cargo build 零警告通过（22 个 dead code 已标注 `#[allow(dead_code)]`）
-- **测试状态**: ✅ 51/51 全部通过
+- **测试状态**: ✅ 166/166 全部通过
 
 ---
 
@@ -310,16 +310,23 @@
   - 实现 `config list/get/set/edit` 命令（edit 使用 $EDITOR 环境变量）
   - 已集成到 cmd_config 命令
 
-- [ ] **[P0] T-024: 补充单元测试**
+- [x] **[P0] T-024: 补充单元测试** ✅ *已完成*
   目标覆盖率 > 70%
-  - 当前已有 51 个单元测试（全部通过 ✅）
-  - ✅ **已修复**: `test_resolve_version_edge_cases` — `"0."` 输入现在正确返回错误
-  - 版本解析逻辑测试（边界情况）
-  - API 客户端 Mock 测试
-  - 文件路径计算测试
-  - 配置合并逻辑测试
-  - 兼容性规则匹配测试
-  - 补充 ZlsManager / IdeManager / ConfigManager 测试
+  - 从 51 个测试增加到 166 个测试（+115 个，增幅 225%）
+  - ✅ utils/error.rs: 14 个测试（错误类型 Display、IO 转换、Result 别名）
+  - ✅ utils/version.rs: 16 个测试（预发布版本、构造器、排序、serde、hash、无效输入）
+  - ✅ core/compatibility.rs: 10 个测试（nightly+stable、v-prefix、两段版本号、不可解析版本）
+  - ✅ core/config.rs: 9 个测试（IdeConfig 默认值、mirror_url、install_dir、TOML 最小化解析、serde default_true 行为）
+  - ✅ core/ide.rs: 8 个测试（VsCodeSettings 保留其他字段、JSONC 多注释、URL 内 //、IdeManager 创建）
+  - ✅ core/zig_manager.rs: 4 个测试（子目录重组、ZigVersion 序列化、list_installed 空、nightly channel）
+  - ✅ core/zls_manager.rs: 9 个测试（ZlsManager 创建、InstalledZlsVersion 创建/序列化、reorganize、find_and_link_zls_binary 搜索逻辑）
+  - ✅ infra/zig_api.rs: 9 个测试（parse_size 边界、target_triple 全覆盖、macos/linux 平台匹配、ZigVersionInfo/ZigPlatformAsset 序列化、ZigApiClient 创建、ZigDownloadIndex 反序列化）
+  - ✅ infra/zls_api.rs: 9 个测试（channel 相等性、target_triple 全覆盖、minisig 排除、空 assets、ZlsApiClient 创建、GithubRelease/ZlsVersionInfo/GithubAsset 序列化、draft 过滤）
+  - ✅ infra/downloader.rs: 2 个测试（builder pattern、zero retries）
+  - ✅ infra/path_manager.rs: 9 个测试（ZLS 版本索引、多版本索引、zig/zls version dir 路径、binary paths、calculate_dir_size 空/文件/嵌套）
+  - ✅ infra/filesystem.rs: 6 个测试（zip 子目录、zip 内容保留、remove_dir_all 有内容、find_extracted_root 子目录/无子目录、set_executable）
+  - ✅ infra/cache.rs: 6 个测试（有文件的总大小、clean_all、preview_clean/空、format_size 边界值、嵌套目录）
+  - ⚠️ 已知设计差异: IdeConfig Default derive vs serde default_true 语义不同（vscode_set_zls_path）
 
 - [ ] **[P0] T-025: 编写集成测试**
   文件: `tests/integration/`（当前目录为空，无任何测试文件）
@@ -342,7 +349,7 @@
 
 **验收标准**:
 - ✅ `zzm config list` 显示所有配置项
-- ✅ `cargo test` 51/51 全部通过，目标覆盖率 > 70%
+- ✅ `cargo test` 166/166 全部通过，目标覆盖率 > 70%
 - ❌ 集成测试覆盖主要用户场景（目录为空）
 - ✅ `zzm info` 输出清晰的环境信息
 

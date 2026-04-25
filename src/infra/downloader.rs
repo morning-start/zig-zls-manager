@@ -47,18 +47,17 @@ impl Downloader {
     }
 
     /// 下载文件到指定路径（带进度条和重试）
-    pub async fn download_file(
-        &self,
-        url: &str,
-        dest: &Path,
-    ) -> Result<PathBuf, ZzmError> {
+    pub async fn download_file(&self, url: &str, dest: &Path) -> Result<PathBuf, ZzmError> {
         tracing::debug!("开始下载: {} -> {}", url, dest.display());
 
         // 确保目标目录存在
         if let Some(parent) = dest.parent()
-            && !parent.exists() {
-                tokio::fs::create_dir_all(parent).await.map_err(ZzmError::Io)?;
-            }
+            && !parent.exists()
+        {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(ZzmError::Io)?;
+        }
 
         let mut last_error = None;
 
@@ -66,12 +65,7 @@ impl Downloader {
             match self.download_single(url, dest).await {
                 Ok(path) => return Ok(path),
                 Err(e) => {
-                    tracing::warn!(
-                        "下载失败 (尝试 {}/{}): {}",
-                        attempt,
-                        self.max_retries,
-                        e
-                    );
+                    tracing::warn!("下载失败 (尝试 {}/{}): {}", attempt, self.max_retries, e);
                     last_error = Some(e);
 
                     if attempt < self.max_retries {
@@ -87,11 +81,7 @@ impl Downloader {
     }
 
     /// 单次下载尝试（带进度条显示）
-    async fn download_single(
-        &self,
-        url: &str,
-        dest: &Path,
-    ) -> Result<PathBuf, ZzmError> {
+    async fn download_single(&self, url: &str, dest: &Path) -> Result<PathBuf, ZzmError> {
         let response = self
             .client
             .get(url)
@@ -221,5 +211,17 @@ mod tests {
     fn test_default_downloader() {
         let downloader = Downloader::default();
         assert_eq!(downloader.max_retries, DEFAULT_MAX_RETRIES);
+    }
+
+    #[test]
+    fn test_downloader_builder_pattern() {
+        let downloader = Downloader::new().unwrap().with_max_retries(10);
+        assert_eq!(downloader.max_retries, 10);
+    }
+
+    #[test]
+    fn test_downloader_zero_retries() {
+        let downloader = Downloader::new().unwrap().with_max_retries(0);
+        assert_eq!(downloader.max_retries, 0);
     }
 }

@@ -107,7 +107,8 @@ impl PathManager {
 
     /// 获取指定 Zig 版本的二进制文件路径
     pub fn zig_binary_path(&self, version: &str) -> PathBuf {
-        self.zig_version_dir(version).join(self.platform.zig_binary_name())
+        self.zig_version_dir(version)
+            .join(self.platform.zig_binary_name())
     }
 
     /// 获取指定 ZLS 版本的安装路径
@@ -117,7 +118,8 @@ impl PathManager {
 
     /// 获取指定 ZLS 版本的二进制文件路径
     pub fn zls_binary_path(&self, version: &str) -> PathBuf {
-        self.zls_version_dir(version).join(self.platform.zls_binary_name())
+        self.zls_version_dir(version)
+            .join(self.platform.zls_binary_name())
     }
 
     /// 获取 bin 目录中 zig 的符号链接/shim 路径
@@ -287,5 +289,145 @@ mod tests {
         let deserialized: InstalledIndex = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.active_zig, Some("0.13.0".to_string()));
         assert_eq!(deserialized.zig_versions.len(), 1);
+    }
+
+    #[test]
+    fn test_installed_index_with_zls() {
+        let index = InstalledIndex {
+            zig_versions: vec![InstalledZigVersion {
+                version: "0.13.0".to_string(),
+                install_path: PathBuf::from("/home/user/.zzm/versions/zig/0.13.0"),
+                installed_at: "2026-04-24T10:00:00Z".to_string(),
+                channel: "stable".to_string(),
+            }],
+            zls_versions: vec![InstalledZlsVersion {
+                version: "0.13.0".to_string(),
+                install_path: PathBuf::from("/home/user/.zzm/versions/zls/0.13.0"),
+                installed_at: "2026-04-24T10:05:00Z".to_string(),
+                zig_version: Some("0.13.0".to_string()),
+            }],
+            active_zig: Some("0.13.0".to_string()),
+            active_zls: Some("0.13.0".to_string()),
+        };
+
+        let json = serde_json::to_string_pretty(&index).unwrap();
+        let deserialized: InstalledIndex = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.active_zls, Some("0.13.0".to_string()));
+        assert_eq!(deserialized.zls_versions.len(), 1);
+        assert_eq!(
+            deserialized.zls_versions[0].zig_version,
+            Some("0.13.0".to_string())
+        );
+    }
+
+    #[test]
+    fn test_installed_index_multiple_versions() {
+        let index = InstalledIndex {
+            zig_versions: vec![
+                InstalledZigVersion {
+                    version: "0.13.0".to_string(),
+                    install_path: PathBuf::from("/home/.zzm/versions/zig/0.13.0"),
+                    installed_at: "2026-04-24T10:00:00Z".to_string(),
+                    channel: "stable".to_string(),
+                },
+                InstalledZigVersion {
+                    version: "0.12.0".to_string(),
+                    install_path: PathBuf::from("/home/.zzm/versions/zig/0.12.0"),
+                    installed_at: "2026-04-23T10:00:00Z".to_string(),
+                    channel: "stable".to_string(),
+                },
+            ],
+            zls_versions: vec![],
+            active_zig: Some("0.13.0".to_string()),
+            active_zls: None,
+        };
+
+        let json = serde_json::to_string_pretty(&index).unwrap();
+        let deserialized: InstalledIndex = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.zig_versions.len(), 2);
+    }
+
+    #[test]
+    fn test_installed_zls_version_no_zig() {
+        let version = InstalledZlsVersion {
+            version: "0.13.0".to_string(),
+            install_path: PathBuf::from("/home/.zzm/versions/zls/0.13.0"),
+            installed_at: "2026-04-24T10:00:00Z".to_string(),
+            zig_version: None,
+        };
+
+        let json = serde_json::to_string_pretty(&version).unwrap();
+        let parsed: InstalledZlsVersion = serde_json::from_str(&json).unwrap();
+        assert!(parsed.zig_version.is_none());
+    }
+
+    #[test]
+    fn test_path_manager_creation() {
+        let platform = crate::platform::detect_platform();
+        let pm = PathManager::new(platform);
+        // 基本创建不报错
+        let _ = pm;
+    }
+
+    #[test]
+    fn test_path_manager_zig_version_dir() {
+        let platform = crate::platform::detect_platform();
+        let pm = PathManager::new(platform);
+        let dir = pm.zig_version_dir("0.13.0");
+        assert!(dir.to_string_lossy().contains("0.13.0"));
+        assert!(dir.to_string_lossy().contains("zig"));
+    }
+
+    #[test]
+    fn test_path_manager_zls_version_dir() {
+        let platform = crate::platform::detect_platform();
+        let pm = PathManager::new(platform);
+        let dir = pm.zls_version_dir("0.13.0");
+        assert!(dir.to_string_lossy().contains("0.13.0"));
+        assert!(dir.to_string_lossy().contains("zls"));
+    }
+
+    #[test]
+    fn test_path_manager_binary_paths() {
+        let platform = crate::platform::detect_platform();
+        let pm = PathManager::new(platform);
+        let zig_bin = pm.zig_binary_path("0.13.0");
+        let zls_bin = pm.zls_binary_path("0.13.0");
+        assert!(zig_bin.to_string_lossy().contains("0.13.0"));
+        assert!(zls_bin.to_string_lossy().contains("0.13.0"));
+    }
+
+    #[test]
+    fn test_read_installed_index_nonexistent() {
+        // 直接测试默认索引
+        let index = InstalledIndex::default();
+        assert!(index.zig_versions.is_empty());
+        assert!(index.active_zig.is_none());
+    }
+
+    #[test]
+    fn test_calculate_dir_size_empty() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let size = calculate_dir_size(temp_dir.path());
+        assert_eq!(size, 0);
+    }
+
+    #[test]
+    fn test_calculate_dir_size_with_files() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::fs::write(temp_dir.path().join("test.txt"), b"hello").unwrap();
+        let size = calculate_dir_size(temp_dir.path());
+        assert_eq!(size, 5);
+    }
+
+    #[test]
+    fn test_calculate_dir_size_nested() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let sub_dir = temp_dir.path().join("sub");
+        std::fs::create_dir_all(&sub_dir).unwrap();
+        std::fs::write(temp_dir.path().join("a.txt"), b"12345").unwrap();
+        std::fs::write(sub_dir.join("b.txt"), b"123").unwrap();
+        let size = calculate_dir_size(temp_dir.path());
+        assert_eq!(size, 8);
     }
 }

@@ -58,13 +58,7 @@ pub fn print_step(step: usize, total: usize, msg: &str) {
     if is_no_color() {
         println!("[{}/{}] {}", step, total, msg);
     } else {
-        println!(
-            "{} {}/{} {}",
-            style("▸").cyan(),
-            step,
-            total,
-            msg
-        );
+        println!("{} {}/{} {}", style("▸").cyan(), step, total, msg);
     }
 }
 

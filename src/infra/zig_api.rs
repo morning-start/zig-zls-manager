@@ -202,15 +202,15 @@ impl ZigApiClient {
 
         tracing::debug!("从远程获取 Zig 索引数据: {}", ZIG_INDEX_URL);
 
-        let response = self
-            .client
-            .get(ZIG_INDEX_URL)
-            .send()
-            .await
-            .map_err(|e| ZzmError::DownloadFailed {
-                url: ZIG_INDEX_URL.to_string(),
-                reason: e.to_string(),
-            })?;
+        let response =
+            self.client
+                .get(ZIG_INDEX_URL)
+                .send()
+                .await
+                .map_err(|e| ZzmError::DownloadFailed {
+                    url: ZIG_INDEX_URL.to_string(),
+                    reason: e.to_string(),
+                })?;
 
         if !response.status().is_success() {
             let status = response.status().as_u16();
@@ -262,8 +262,10 @@ impl ZigApiClient {
                 (ZigChannel::Stable, ZigChannel::Nightly) => std::cmp::Ordering::Less,
                 (ZigChannel::Stable, ZigChannel::Stable) => {
                     // 尝试按语义版本比较
-                    let va: std::result::Result<crate::utils::version::Version, _> = a.version.parse();
-                    let vb: std::result::Result<crate::utils::version::Version, _> = b.version.parse();
+                    let va: std::result::Result<crate::utils::version::Version, _> =
+                        a.version.parse();
+                    let vb: std::result::Result<crate::utils::version::Version, _> =
+                        b.version.parse();
                     match (va, vb) {
                         (Ok(va), Ok(vb)) => vb.cmp(&va), // 降序
                         _ => b.version.cmp(&a.version),
@@ -283,9 +285,12 @@ impl ZigApiClient {
         // 处理特殊标识符
         let resolved = crate::utils::version::resolve_version(version)?;
 
-        let entry = index.0.get(&resolved).ok_or_else(|| ZzmError::VersionNotFound {
-            version: version.to_string(),
-        })?;
+        let entry = index
+            .0
+            .get(&resolved)
+            .ok_or_else(|| ZzmError::VersionNotFound {
+                version: version.to_string(),
+            })?;
 
         let channel = if resolved == "master" {
             ZigChannel::Nightly
@@ -331,10 +336,7 @@ impl ZigApiClient {
 // ========== 辅助函数 ==========
 
 /// 在平台列表中查找匹配当前目标三元组的资源
-fn find_matching_asset(
-    platforms: &ZigPlatforms,
-    target_triple: &str,
-) -> Option<ZigPlatformAsset> {
+fn find_matching_asset(platforms: &ZigPlatforms, target_triple: &str) -> Option<ZigPlatformAsset> {
     let (os_name, arch_name) = parse_target_triple(target_triple)?;
 
     let platform_list = match os_name {
@@ -373,8 +375,14 @@ fn parse_target_triple(triple: &str) -> Option<(&str, &str)> {
 #[allow(dead_code)] // 预留: 下载大小显示
 pub fn parse_size_to_bytes(size_str: &str) -> u64 {
     let size_str = size_str.trim();
-    let num_part: String = size_str.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
-    let unit_part: String = size_str.chars().skip_while(|c| c.is_ascii_digit() || *c == '.').collect();
+    let num_part: String = size_str
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+    let unit_part: String = size_str
+        .chars()
+        .skip_while(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
 
     let num: f64 = num_part.parse().unwrap_or(0.0);
 
@@ -406,9 +414,18 @@ mod tests {
 
     #[test]
     fn test_parse_target_triple() {
-        assert_eq!(parse_target_triple("x86_64-windows"), Some(("windows", "x86_64")));
-        assert_eq!(parse_target_triple("aarch64-macos"), Some(("macos", "aarch64")));
-        assert_eq!(parse_target_triple("x86_64-linux"), Some(("linux", "x86_64")));
+        assert_eq!(
+            parse_target_triple("x86_64-windows"),
+            Some(("windows", "x86_64"))
+        );
+        assert_eq!(
+            parse_target_triple("aarch64-macos"),
+            Some(("macos", "aarch64"))
+        );
+        assert_eq!(
+            parse_target_triple("x86_64-linux"),
+            Some(("linux", "x86_64"))
+        );
         assert_eq!(parse_target_triple("unknown"), None);
     }
 
@@ -454,5 +471,156 @@ mod tests {
         let result = find_matching_asset(&platforms, "x86_64-windows");
         assert!(result.is_some());
         assert_eq!(result.unwrap().filename, "zig-x86_64-windows-0.13.0.zip");
+    }
+
+    #[test]
+    fn test_parse_size_to_bytes_various() {
+        assert_eq!(parse_size_to_bytes("0B"), 0);
+        assert_eq!(parse_size_to_bytes("1KB"), 1024);
+        assert_eq!(parse_size_to_bytes("1MB"), 1024 * 1024);
+        assert_eq!(parse_size_to_bytes("2GiB"), 2 * 1024 * 1024 * 1024);
+        assert_eq!(parse_size_to_bytes("1.5MiB"), 1572864);
+    }
+
+    #[test]
+    fn test_parse_size_to_bytes_empty() {
+        assert_eq!(parse_size_to_bytes(""), 0);
+    }
+
+    #[test]
+    fn test_parse_target_triple_all() {
+        assert_eq!(
+            parse_target_triple("x86_64-windows"),
+            Some(("windows", "x86_64"))
+        );
+        assert_eq!(
+            parse_target_triple("aarch64-windows"),
+            Some(("windows", "aarch64"))
+        );
+        assert_eq!(
+            parse_target_triple("x86_64-macos"),
+            Some(("macos", "x86_64"))
+        );
+        assert_eq!(
+            parse_target_triple("aarch64-macos"),
+            Some(("macos", "aarch64"))
+        );
+        assert_eq!(
+            parse_target_triple("x86_64-linux"),
+            Some(("linux", "x86_64"))
+        );
+        assert_eq!(
+            parse_target_triple("aarch64-linux"),
+            Some(("linux", "aarch64"))
+        );
+    }
+
+    #[test]
+    fn test_zig_channel_equality() {
+        assert_eq!(ZigChannel::Stable, ZigChannel::Stable);
+        assert_eq!(ZigChannel::Nightly, ZigChannel::Nightly);
+        assert_ne!(ZigChannel::Stable, ZigChannel::Nightly);
+    }
+
+    #[test]
+    fn test_find_matching_asset_macos() {
+        let asset = ZigPlatformAsset {
+            os: "macos".to_string(),
+            arch: "aarch64".to_string(),
+            filename: "zig-aarch64-macos-0.13.0.tar.xz".to_string(),
+            size: "42MiB".to_string(),
+            shasum: "def456".to_string(),
+            signature: None,
+            url: "https://ziglang.org/download/0.13.0/zig-aarch64-macos-0.13.0.tar.xz".to_string(),
+        };
+
+        let platforms = ZigPlatforms {
+            windows: vec![],
+            macos: vec![asset],
+            linux: vec![],
+        };
+
+        let result = find_matching_asset(&platforms, "aarch64-macos");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().filename, "zig-aarch64-macos-0.13.0.tar.xz");
+    }
+
+    #[test]
+    fn test_find_matching_asset_linux() {
+        let asset = ZigPlatformAsset {
+            os: "linux".to_string(),
+            arch: "x86_64".to_string(),
+            filename: "zig-x86_64-linux-0.13.0.tar.xz".to_string(),
+            size: "42MiB".to_string(),
+            shasum: "ghi789".to_string(),
+            signature: None,
+            url: "https://ziglang.org/download/0.13.0/zig-x86_64-linux-0.13.0.tar.xz".to_string(),
+        };
+
+        let platforms = ZigPlatforms {
+            windows: vec![],
+            macos: vec![],
+            linux: vec![asset],
+        };
+
+        let result = find_matching_asset(&platforms, "x86_64-linux");
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_zig_version_info_serialization() {
+        let info = ZigVersionInfo {
+            version: "0.13.0".to_string(),
+            channel: ZigChannel::Stable,
+            date: "2024-06-06".to_string(),
+            asset: None,
+        };
+
+        let json = serde_json::to_string(&info).unwrap();
+        let parsed: ZigVersionInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.version, "0.13.0");
+        assert_eq!(parsed.channel, ZigChannel::Stable);
+    }
+
+    #[test]
+    fn test_zig_platform_asset_serialization() {
+        let asset = ZigPlatformAsset {
+            os: "windows".to_string(),
+            arch: "x86_64".to_string(),
+            filename: "zig-x86_64-windows-0.13.0.zip".to_string(),
+            size: "93MiB".to_string(),
+            shasum: "abc123".to_string(),
+            signature: None,
+            url: "https://example.com/zig.zip".to_string(),
+        };
+
+        let json = serde_json::to_string(&asset).unwrap();
+        let parsed: ZigPlatformAsset = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.filename, "zig-x86_64-windows-0.13.0.zip");
+        assert_eq!(parsed.shasum, "abc123");
+    }
+
+    #[test]
+    fn test_zig_api_client_creation() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let client = ZigApiClient::new(temp_dir.path().to_path_buf());
+        assert!(client.is_ok());
+    }
+
+    #[test]
+    fn test_zig_download_index_deserialization() {
+        let json = r#"{
+            "0.13.0": {
+                "date": "2024-06-06",
+                "platforms": {
+                    "windows": [],
+                    "macos": [],
+                    "linux": []
+                }
+            }
+        }"#;
+
+        let index: ZigDownloadIndex = serde_json::from_str(json).unwrap();
+        assert!(index.0.contains_key("0.13.0"));
     }
 }

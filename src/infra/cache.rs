@@ -101,11 +101,12 @@ fn clean_dir_expired(
                 }
             } else if let Ok(meta) = path.metadata()
                 && let Ok(modified) = meta.modified()
-                    && let Ok(elapsed) = modified.elapsed()
-                        && elapsed > ttl {
-                            *cleaned_size += meta.len();
-                            let _ = fs::remove_file(&path);
-                        }
+                && let Ok(elapsed) = modified.elapsed()
+                && elapsed > ttl
+            {
+                *cleaned_size += meta.len();
+                let _ = fs::remove_file(&path);
+            }
         }
     }
     Ok(())
@@ -162,5 +163,76 @@ mod tests {
     fn test_cache_manager_nonexistent_dir() {
         let cm = CacheManager::new(std::path::PathBuf::from("/nonexistent/cache"));
         assert_eq!(cm.total_size().unwrap(), 0);
+    }
+
+    #[test]
+    fn test_cache_manager_with_files() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let data1 = b"hello world";
+        let data2 = b"test data here";
+        std::fs::write(temp_dir.path().join("cache1.dat"), data1).unwrap();
+        std::fs::write(temp_dir.path().join("cache2.dat"), data2).unwrap();
+
+        let cm = CacheManager::new(temp_dir.path().to_path_buf());
+        let size = cm.total_size().unwrap();
+        assert_eq!(size, (data1.len() + data2.len()) as u64);
+    }
+
+    #[test]
+    fn test_cache_manager_clean_all() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::fs::write(temp_dir.path().join("cache.dat"), b"data").unwrap();
+
+        let cm = CacheManager::new(temp_dir.path().to_path_buf());
+        let cleaned = cm.clean_all().unwrap();
+        assert_eq!(cleaned, 4);
+        // 目录应仍然存在（被重建）
+        assert!(temp_dir.path().exists());
+        // 但内容为空
+        assert_eq!(cm.total_size().unwrap(), 0);
+    }
+
+    #[test]
+    fn test_cache_manager_preview_clean() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        std::fs::write(temp_dir.path().join("cache.dat"), b"data").unwrap();
+
+        let cm = CacheManager::new(temp_dir.path().to_path_buf());
+        let items = cm.preview_clean().unwrap();
+        assert_eq!(items.len(), 1);
+        assert!(items[0].contains("cache.dat"));
+    }
+
+    #[test]
+    fn test_cache_manager_preview_clean_empty() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        let cm = CacheManager::new(temp_dir.path().to_path_buf());
+        let items = cm.preview_clean().unwrap();
+        assert!(items.is_empty());
+    }
+
+    #[test]
+    fn test_format_size_boundary() {
+        assert_eq!(format_size(0), "0 B");
+        assert_eq!(format_size(1), "1 B");
+        assert_eq!(format_size(1023), "1023 B");
+        assert_eq!(format_size(1024), "1.0 KB");
+        assert_eq!(format_size(1024 * 1024 - 1), "1024.0 KB");
+        assert_eq!(format_size(1024 * 1024), "1.0 MB");
+        assert_eq!(format_size(1024 * 1024 * 1024), "1.0 GB");
+    }
+
+    #[test]
+    fn test_cache_manager_nested_dirs() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let sub_dir = temp_dir.path().join("sub");
+        std::fs::create_dir_all(&sub_dir).unwrap();
+        std::fs::write(sub_dir.join("nested.dat"), b"nested content").unwrap();
+        std::fs::write(temp_dir.path().join("root.dat"), b"root content").unwrap();
+
+        let cm = CacheManager::new(temp_dir.path().to_path_buf());
+        let size = cm.total_size().unwrap();
+        assert_eq!(size, 14 + 12); // "nested content" + "root content"
     }
 }

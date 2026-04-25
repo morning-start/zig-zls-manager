@@ -1,5 +1,5 @@
 use clap::Parser;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 mod cli;
 mod core;
@@ -16,8 +16,8 @@ use crate::infra::path_manager::PathManager;
 use crate::output::console_output;
 use crate::output::json_output;
 use crate::output::table_output::{
-    render_installed_table, render_kv_table, render_remote_table, InstalledVersionRow,
-    RemoteVersionRow,
+    InstalledVersionRow, RemoteVersionRow, render_installed_table, render_kv_table,
+    render_remote_table,
 };
 use crate::platform::detect_platform;
 
@@ -43,8 +43,8 @@ async fn main() -> anyhow::Result<()> {
 fn init_logging(verbose: bool) {
     let filter_level = if verbose { "debug" } else { "warn" };
 
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(filter_level));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(filter_level));
 
     fmt()
         .with_env_filter(env_filter)
@@ -69,9 +69,7 @@ async fn run(cli: Cli) -> Result<(), utils::error::ZzmError> {
             force,
         } => cmd_install(&version, with_zls, force, &*platform).await,
 
-        cli::Commands::Uninstall { version, purge: _ } => {
-            cmd_uninstall(&version, &*platform).await
-        }
+        cli::Commands::Uninstall { version, purge: _ } => cmd_uninstall(&version, &*platform).await,
 
         cli::Commands::List {
             installed,
@@ -194,7 +192,11 @@ async fn cmd_list(
                         version: v.version.clone(),
                         channel: v.channel.clone(),
                         path: v.install_path.to_string_lossy().to_string(),
-                        status: if is_active { "=> 当前".to_string() } else { String::new() },
+                        status: if is_active {
+                            "=> 当前".to_string()
+                        } else {
+                            String::new()
+                        },
                     }
                 })
                 .collect();
@@ -282,12 +284,17 @@ async fn cmd_zls(
             zig_version,
             yes: _,
         } => {
-            manager.install(&version, zig_version.as_deref(), false).await?;
+            manager
+                .install(&version, zig_version.as_deref(), false)
+                .await?;
         }
         cli::ZlsCommands::Uninstall { version } => {
             manager.uninstall(&version).await?;
         }
-        cli::ZlsCommands::List { installed: _, remote } => {
+        cli::ZlsCommands::List {
+            installed: _,
+            remote,
+        } => {
             if remote {
                 let versions = manager.list_remote().await?;
                 if json {
@@ -301,7 +308,11 @@ async fn cmd_zls(
                                 infra::zls_api::ZlsChannel::Stable => "stable".to_string(),
                                 infra::zls_api::ZlsChannel::Prerelease => "prerelease".to_string(),
                             },
-                            size: v.asset.as_ref().map(|a| format_size(a.size)).unwrap_or_default(),
+                            size: v
+                                .asset
+                                .as_ref()
+                                .map(|a| format_size(a.size))
+                                .unwrap_or_default(),
                             installed: String::new(),
                         })
                         .collect();
@@ -325,7 +336,11 @@ async fn cmd_zls(
                                 version: v.version.clone(),
                                 channel: v.zig_version.clone().unwrap_or_default(),
                                 path: v.install_path.to_string_lossy().to_string(),
-                                status: if is_active { "=> 当前".to_string() } else { String::new() },
+                                status: if is_active {
+                                    "=> 当前".to_string()
+                                } else {
+                                    String::new()
+                                },
                             }
                         })
                         .collect();
@@ -382,7 +397,9 @@ async fn cmd_setup(
     // 如果指定 --with-zls
     if with_zls {
         let zls_manager = ZlsManager::new(platform.clone_box())?;
-        zls_manager.install_compatible(&installed.version, false).await?;
+        zls_manager
+            .install_compatible(&installed.version, false)
+            .await?;
     }
 
     // PATH 提示
@@ -409,7 +426,8 @@ async fn cmd_sync(
 
     match (zig_current, zls_current) {
         (Some(zig), Some(zls)) => {
-            let status = core::compatibility::CompatibilityChecker::check(&zig.version, &zls.version);
+            let status =
+                core::compatibility::CompatibilityChecker::check(&zig.version, &zls.version);
             match status {
                 core::compatibility::CompatibilityStatus::Compatible => {
                     console_output::print_success(&format!(
@@ -418,7 +436,10 @@ async fn cmd_sync(
                     ));
                 }
                 _ => {
-                    let recommended = core::compatibility::CompatibilityChecker::recommended_zls_version(&zig.version);
+                    let recommended =
+                        core::compatibility::CompatibilityChecker::recommended_zls_version(
+                            &zig.version,
+                        );
                     if let Some(zls_ver) = recommended {
                         console_output::print_info(&format!(
                             "正在安装推荐 ZLS 版本 {} 以匹配 Zig {}...",
@@ -475,7 +496,11 @@ async fn cmd_info(
         .unwrap_or_else(|| "未设置".to_string());
     let install_dir = platform.default_install_dir().to_string_lossy().to_string();
     let bin_dir = platform.bin_dir().to_string_lossy().to_string();
-    let in_path = if platform.is_bin_in_path() { "是" } else { "否" };
+    let in_path = if platform.is_bin_in_path() {
+        "是"
+    } else {
+        "否"
+    };
 
     let info_items = [
         ("平台", platform.name().to_string()),
@@ -509,7 +534,8 @@ async fn cmd_config(
             if items.is_empty() {
                 console_output::print_info("配置为空（使用默认值）");
             } else {
-                let rows: Vec<(&str, String)> = items.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+                let rows: Vec<(&str, String)> =
+                    items.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
                 render_kv_table("配置项", &rows);
             }
         }
@@ -528,7 +554,13 @@ async fn cmd_config(
             let config_path = config_manager.config_path();
             let editor = std::env::var("EDITOR")
                 .or_else(|_| std::env::var("VISUAL"))
-                .unwrap_or_else(|_| if cfg!(windows) { "notepad".to_string() } else { "vi".to_string() });
+                .unwrap_or_else(|_| {
+                    if cfg!(windows) {
+                        "notepad".to_string()
+                    } else {
+                        "vi".to_string()
+                    }
+                });
             console_output::print_info(&format!("使用 {} 编辑 {}", editor, config_path.display()));
             let status = std::process::Command::new(&editor)
                 .arg(&config_path)
@@ -550,22 +582,20 @@ async fn cmd_ide(
     let ide_manager = core::ide::IdeManager::new(platform.clone_box());
 
     match command {
-        cli::IdeCommands::Config { editor } => {
-            match editor.to_lowercase().as_str() {
-                "vscode" | "code" => {
-                    ide_manager.setup_vscode()?;
-                }
-                "neovim" | "nvim" => {
-                    console_output::print_warning("Neovim 集成将在后续版本中实现");
-                }
-                "helix" => {
-                    console_output::print_warning("Helix 集成将在后续版本中实现");
-                }
-                _ => {
-                    console_output::print_error(&format!("不支持的编辑器: {}", editor));
-                }
+        cli::IdeCommands::Config { editor } => match editor.to_lowercase().as_str() {
+            "vscode" | "code" => {
+                ide_manager.setup_vscode()?;
             }
-        }
+            "neovim" | "nvim" => {
+                console_output::print_warning("Neovim 集成将在后续版本中实现");
+            }
+            "helix" => {
+                console_output::print_warning("Helix 集成将在后续版本中实现");
+            }
+            _ => {
+                console_output::print_error(&format!("不支持的编辑器: {}", editor));
+            }
+        },
         cli::IdeCommands::Check => {
             // 检查 VS Code 配置状态
             match ide_manager.vscode_settings_path() {
@@ -649,7 +679,11 @@ async fn cmd_clean(
                 println!("  {}", item);
             }
             let size = cache_mgr.total_size()?;
-            console_output::print_info(&format!("共 {} 项，总计 {}", items.len(), format_size(size)));
+            console_output::print_info(&format!(
+                "共 {} 项，总计 {}",
+                items.len(),
+                format_size(size)
+            ));
         }
         return Ok(());
     }
@@ -666,19 +700,38 @@ async fn cmd_clean(
     Ok(())
 }
 
-async fn cmd_doctor(
-    platform: &dyn platform::PlatformTrait,
-) -> Result<(), utils::error::ZzmError> {
-    console_output::print_header(&format!(
-        "zzm v{} 诊断报告",
-        env!("CARGO_PKG_VERSION")
-    ));
+async fn cmd_doctor(platform: &dyn platform::PlatformTrait) -> Result<(), utils::error::ZzmError> {
+    console_output::print_header(&format!("zzm v{} 诊断报告", env!("CARGO_PKG_VERSION")));
 
     let checks = [
-        ("平台", format!("{} ({})", platform.name(), platform::current_target_triple())),
-        ("安装目录", platform.default_install_dir().to_string_lossy().to_string()),
-        ("目录初始化", if platform.default_install_dir().exists() { "✓ 已初始化".to_string() } else { "✗ 未初始化".to_string() }),
-        ("bin 在 PATH", if platform.is_bin_in_path() { "✓ 已配置".to_string() } else { "✗ 未配置，请将 bin 目录加入 PATH".to_string() }),
+        (
+            "平台",
+            format!(
+                "{} ({})",
+                platform.name(),
+                platform::current_target_triple()
+            ),
+        ),
+        (
+            "安装目录",
+            platform.default_install_dir().to_string_lossy().to_string(),
+        ),
+        (
+            "目录初始化",
+            if platform.default_install_dir().exists() {
+                "✓ 已初始化".to_string()
+            } else {
+                "✗ 未初始化".to_string()
+            },
+        ),
+        (
+            "bin 在 PATH",
+            if platform.is_bin_in_path() {
+                "✓ 已配置".to_string()
+            } else {
+                "✗ 未配置，请将 bin 目录加入 PATH".to_string()
+            },
+        ),
     ];
 
     for (key, value) in &checks {
@@ -709,21 +762,44 @@ fn cmd_completion(shell: &str) -> Result<(), utils::error::ZzmError> {
 
     match shell.to_lowercase().as_str() {
         "bash" => {
-            clap_complete::generate(clap_complete::Shell::Bash, &mut cmd, "zzm", &mut std::io::stdout());
+            clap_complete::generate(
+                clap_complete::Shell::Bash,
+                &mut cmd,
+                "zzm",
+                &mut std::io::stdout(),
+            );
         }
         "zsh" => {
-            clap_complete::generate(clap_complete::Shell::Zsh, &mut cmd, "zzm", &mut std::io::stdout());
+            clap_complete::generate(
+                clap_complete::Shell::Zsh,
+                &mut cmd,
+                "zzm",
+                &mut std::io::stdout(),
+            );
         }
         "fish" => {
-            clap_complete::generate(clap_complete::Shell::Fish, &mut cmd, "zzm", &mut std::io::stdout());
+            clap_complete::generate(
+                clap_complete::Shell::Fish,
+                &mut cmd,
+                "zzm",
+                &mut std::io::stdout(),
+            );
         }
         "powershell" | "ps" => {
-            clap_complete::generate(clap_complete::Shell::PowerShell, &mut cmd, "zzm", &mut std::io::stdout());
+            clap_complete::generate(
+                clap_complete::Shell::PowerShell,
+                &mut cmd,
+                "zzm",
+                &mut std::io::stdout(),
+            );
         }
         _ => {
             return Err(utils::error::ZzmError::ConfigError {
                 path: "completion".to_string(),
-                reason: format!("不支持的 shell 类型: {}，支持: bash, zsh, fish, powershell", shell),
+                reason: format!(
+                    "不支持的 shell 类型: {}，支持: bash, zsh, fish, powershell",
+                    shell
+                ),
             });
         }
     }

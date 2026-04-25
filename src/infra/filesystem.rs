@@ -6,7 +6,7 @@ use crate::utils::error::ZzmError;
 /// 文件系统操作模块
 ///
 /// 提供 tar.gz / zip 解压、文件权限设置等操作
-
+///
 /// 解压文件到指定目录
 ///
 /// 自动检测压缩格式（.tar.xz, .tar.gz, .zip）并选择合适的解压方式
@@ -48,7 +48,11 @@ pub fn extract_archive(archive_path: &Path, dest_dir: &Path) -> Result<PathBuf, 
 
 /// 解压 .tar.xz 文件
 fn extract_tar_xz(archive_path: &Path, dest_dir: &Path) -> Result<(), ZzmError> {
-    tracing::debug!("解压 tar.xz: {} -> {}", archive_path.display(), dest_dir.display());
+    tracing::debug!(
+        "解压 tar.xz: {} -> {}",
+        archive_path.display(),
+        dest_dir.display()
+    );
 
     let file = fs::File::open(archive_path).map_err(ZzmError::Io)?;
     let decoder = xz2::read::XzDecoder::new(file);
@@ -61,7 +65,11 @@ fn extract_tar_xz(archive_path: &Path, dest_dir: &Path) -> Result<(), ZzmError> 
 
 /// 解压 .tar.gz 文件
 fn extract_tar_gz(archive_path: &Path, dest_dir: &Path) -> Result<(), ZzmError> {
-    tracing::debug!("解压 tar.gz: {} -> {}", archive_path.display(), dest_dir.display());
+    tracing::debug!(
+        "解压 tar.gz: {} -> {}",
+        archive_path.display(),
+        dest_dir.display()
+    );
 
     let file = fs::File::open(archive_path).map_err(ZzmError::Io)?;
     let decoder = flate2::read::GzDecoder::new(file);
@@ -85,22 +93,31 @@ fn unpack_tar_archive<R: std::io::Read>(
             reason: format!("归档条目读取错误: {}", e),
         })?;
 
-        let entry_path_owned = entry.path().map(|p| p.to_path_buf()).map_err(|e| ZzmError::ExtractionFailed {
-            path: dest_dir.to_string_lossy().to_string(),
-            reason: format!("无效的条目路径: {}", e),
-        })?;
+        let entry_path_owned =
+            entry
+                .path()
+                .map(|p| p.to_path_buf())
+                .map_err(|e| ZzmError::ExtractionFailed {
+                    path: dest_dir.to_string_lossy().to_string(),
+                    reason: format!("无效的条目路径: {}", e),
+                })?;
 
         // 安全检查：防止路径遍历攻击
-        if entry_path_owned.to_str().is_some_and(|s| s.starts_with("..") || s.starts_with('/') || s.contains("..")) {
+        if entry_path_owned
+            .to_str()
+            .is_some_and(|s| s.starts_with("..") || s.starts_with('/') || s.contains(".."))
+        {
             tracing::warn!("跳过可疑路径: {}", entry_path_owned.display());
             continue;
         }
 
         let path_for_error = entry_path_owned.to_string_lossy().to_string();
-        entry.unpack_in(dest_dir).map_err(|e| ZzmError::ExtractionFailed {
-            path: path_for_error,
-            reason: format!("解压失败: {}", e),
-        })?;
+        entry
+            .unpack_in(dest_dir)
+            .map_err(|e| ZzmError::ExtractionFailed {
+                path: path_for_error,
+                reason: format!("解压失败: {}", e),
+            })?;
     }
 
     Ok(())
@@ -108,7 +125,11 @@ fn unpack_tar_archive<R: std::io::Read>(
 
 /// 解压 .zip 文件
 fn extract_zip(archive_path: &Path, dest_dir: &Path) -> Result<(), ZzmError> {
-    tracing::debug!("解压 zip: {} -> {}", archive_path.display(), dest_dir.display());
+    tracing::debug!(
+        "解压 zip: {} -> {}",
+        archive_path.display(),
+        dest_dir.display()
+    );
 
     let file = fs::File::open(archive_path).map_err(ZzmError::Io)?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| ZzmError::ExtractionFailed {
@@ -117,10 +138,12 @@ fn extract_zip(archive_path: &Path, dest_dir: &Path) -> Result<(), ZzmError> {
     })?;
 
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i).map_err(|e| ZzmError::ExtractionFailed {
-            path: archive_path.to_string_lossy().to_string(),
-            reason: format!("读取 zip 条目失败: {}", e),
-        })?;
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| ZzmError::ExtractionFailed {
+                path: archive_path.to_string_lossy().to_string(),
+                reason: format!("读取 zip 条目失败: {}", e),
+            })?;
 
         let outpath = match file.enclosed_name() {
             Some(path) => dest_dir.join(path),
@@ -137,9 +160,10 @@ fn extract_zip(archive_path: &Path, dest_dir: &Path) -> Result<(), ZzmError> {
             fs::create_dir_all(&outpath).map_err(ZzmError::Io)?;
         } else {
             if let Some(p) = outpath.parent()
-                && !p.exists() {
-                    fs::create_dir_all(p).map_err(ZzmError::Io)?;
-                }
+                && !p.exists()
+            {
+                fs::create_dir_all(p).map_err(ZzmError::Io)?;
+            }
             let mut outfile = fs::File::create(&outpath).map_err(ZzmError::Io)?;
             std::io::copy(&mut file, &mut outfile).map_err(ZzmError::Io)?;
         }
@@ -181,10 +205,7 @@ fn find_extracted_root(dest_dir: &Path, archive_filename: &str) -> PathBuf {
     // 如果没有找到预期目录，返回 dest_dir 本身
     // （或者查找 dest_dir 中唯一的子目录）
     if let Ok(entries) = fs::read_dir(dest_dir) {
-        let dirs: Vec<_> = entries
-            .flatten()
-            .filter(|e| e.path().is_dir())
-            .collect();
+        let dirs: Vec<_> = entries.flatten().filter(|e| e.path().is_dir()).collect();
 
         if dirs.len() == 1 {
             return dirs[0].path();
@@ -227,7 +248,10 @@ mod tests {
 
     #[test]
     fn test_extract_nonexistent_file() {
-        let result = extract_archive(Path::new("/nonexistent/file.tar.gz"), Path::new("/tmp/test"));
+        let result = extract_archive(
+            Path::new("/nonexistent/file.tar.gz"),
+            Path::new("/tmp/test"),
+        );
         assert!(result.is_err());
     }
 
@@ -273,6 +297,109 @@ mod tests {
     #[test]
     fn test_remove_dir_all_nonexistent() {
         let result = remove_dir_all(Path::new("/nonexistent/dir"));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_extract_zip_with_subdirectory() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let zip_path = temp_dir.path().join("test_subdir.zip");
+
+        let zip_file = fs::File::create(&zip_path).unwrap();
+        let mut zip_writer = zip::ZipWriter::new(zip_file);
+        let options = zip::write::SimpleFileOptions::default();
+
+        zip_writer.start_file("subdir/hello.txt", options).unwrap();
+        zip_writer.write_all(b"Hello from subdir!").unwrap();
+        zip_writer
+            .start_file("subdir/nested/deep.txt", options)
+            .unwrap();
+        zip_writer.write_all(b"Deep nested").unwrap();
+        zip_writer.finish().unwrap();
+
+        let dest = temp_dir.path().join("extracted");
+        fs::create_dir_all(&dest).unwrap();
+
+        let result = extract_archive(&zip_path, &dest);
+        assert!(result.is_ok());
+
+        assert!(dest.join("subdir/hello.txt").exists());
+        assert!(dest.join("subdir/nested/deep.txt").exists());
+    }
+
+    #[test]
+    fn test_extract_zip_preserves_content() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let zip_path = temp_dir.path().join("content_test.zip");
+
+        let content = b"Binary data: \x00\x01\x02\xff";
+
+        let zip_file = fs::File::create(&zip_path).unwrap();
+        let mut zip_writer = zip::ZipWriter::new(zip_file);
+        let options = zip::write::SimpleFileOptions::default();
+
+        zip_writer.start_file("binary.bin", options).unwrap();
+        zip_writer.write_all(content).unwrap();
+        zip_writer.finish().unwrap();
+
+        let dest = temp_dir.path().join("extracted");
+        fs::create_dir_all(&dest).unwrap();
+
+        let result = extract_archive(&zip_path, &dest);
+        assert!(result.is_ok());
+
+        let extracted = fs::read(dest.join("binary.bin")).unwrap();
+        assert_eq!(extracted, content);
+    }
+
+    #[test]
+    fn test_remove_dir_all_with_content() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let sub_dir = temp_dir.path().join("to_remove");
+        fs::create_dir_all(&sub_dir).unwrap();
+        fs::write(sub_dir.join("file.txt"), b"content").unwrap();
+
+        assert!(sub_dir.exists());
+        let result = remove_dir_all(&sub_dir);
+        assert!(result.is_ok());
+        assert!(!sub_dir.exists());
+    }
+
+    #[test]
+    fn test_find_extracted_root_with_subdirectory() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let dest = temp_dir.path().join("dest");
+        fs::create_dir_all(&dest).unwrap();
+
+        // 创建子目录
+        let sub = dest.join("zig-x86_64-windows-0.13.0");
+        fs::create_dir_all(&sub).unwrap();
+
+        let root = find_extracted_root(&dest, "zig-x86_64-windows-0.13.0.zip");
+        assert_eq!(root, sub);
+    }
+
+    #[test]
+    fn test_find_extracted_root_no_subdirectory() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let dest = temp_dir.path().join("dest");
+        fs::create_dir_all(&dest).unwrap();
+
+        // 直接放文件（没有子目录）
+        fs::write(dest.join("zig.exe"), "binary").unwrap();
+
+        let root = find_extracted_root(&dest, "zig-x86_64-windows-0.13.0.zip");
+        assert_eq!(root, dest);
+    }
+
+    #[test]
+    fn test_set_executable_no_error() {
+        // 在任何平台上都不应返回错误
+        let temp_dir = tempfile::tempdir().unwrap();
+        let file_path = temp_dir.path().join("test_binary");
+        fs::write(&file_path, b"binary").unwrap();
+
+        let result = set_executable(&file_path);
         assert!(result.is_ok());
     }
 }

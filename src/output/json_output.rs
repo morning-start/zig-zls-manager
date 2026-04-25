@@ -15,5 +15,8 @@ pub fn print_json_error(message: &str) {
     let error = serde_json::json!({
         "error": message
     });
-    println!("{}", serde_json::to_string_pretty(&error).unwrap_or_default());
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&error).unwrap_or_default()
+    );
 }
