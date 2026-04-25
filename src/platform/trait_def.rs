@@ -20,7 +20,7 @@ pub trait PlatformTrait: Send + Sync {
     /// 获取平台特定的默认安装目录（不考虑环境变量覆盖）
     ///
     /// 各平台实现此方法返回各自的默认路径：
-    /// - Windows: `%LOCALAPPDATA%\zzm`
+    /// - Windows: `%USERPROFILE%\.zzm`
     /// - macOS: `~/.zzm`
     /// - Linux: `$XDG_DATA_HOME/zzm` 或 `~/.zzm`
     fn platform_default_dir(&self) -> PathBuf;

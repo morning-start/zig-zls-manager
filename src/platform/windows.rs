@@ -16,9 +16,9 @@ impl PlatformTrait for WindowsPlatform {
     }
 
     fn platform_default_dir(&self) -> PathBuf {
-        dirs::data_local_dir()
+        dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from(r"C:\Users\Default"))
-            .join("zzm")
+            .join(".zzm")
     }
 
     fn create_symlink(&self, original: &Path, link: &Path) -> Result<(), ZzmError> {
