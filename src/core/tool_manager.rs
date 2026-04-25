@@ -5,7 +5,9 @@ use crate::core::channel::Channel;
 use crate::infra::checksum;
 use crate::infra::downloader::Downloader;
 use crate::infra::filesystem;
-use crate::infra::path_manager::{InstalledIndex, InstalledZigVersion, InstalledZlsVersion, PathManager};
+use crate::infra::path_manager::{
+    InstalledIndex, InstalledZigVersion, InstalledZlsVersion, PathManager,
+};
 use crate::output::console_output;
 use crate::platform::PlatformTrait;
 use crate::utils::error::ZzmError;
@@ -51,10 +53,15 @@ pub struct VersionInfo {
 /// 封装不同 API 数据源的差异，使 ToolManager 能统一操作
 pub trait VersionProvider: Send + Sync {
     /// 获取指定版本的下载信息
-    fn get_version_info(&self, version: &str) -> impl std::future::Future<Output = Result<VersionInfo, ZzmError>> + Send;
+    fn get_version_info(
+        &self,
+        version: &str,
+    ) -> impl std::future::Future<Output = Result<VersionInfo, ZzmError>> + Send;
 
     /// 列出所有远程可用版本
-    fn list_remote_versions(&self) -> impl std::future::Future<Output = Result<Vec<VersionInfo>, ZzmError>> + Send;
+    fn list_remote_versions(
+        &self,
+    ) -> impl std::future::Future<Output = Result<Vec<VersionInfo>, ZzmError>> + Send;
 
     /// 根据兼容性规则查找匹配 Zig 版本的 ZLS 版本（仅 ZLS 实现）
     #[allow(dead_code)] // 预留: ZLS 兼容性查找
@@ -83,7 +90,11 @@ pub struct ToolManager<T: VersionProvider> {
 
 impl<T: VersionProvider> ToolManager<T> {
     /// 创建新的工具管理器
-    pub fn new(kind: ToolKind, platform: Box<dyn PlatformTrait>, api_client: T) -> Result<Self, ZzmError> {
+    pub fn new(
+        kind: ToolKind,
+        platform: Box<dyn PlatformTrait>,
+        api_client: T,
+    ) -> Result<Self, ZzmError> {
         let path_manager = PathManager::new(platform.clone_box());
         let downloader = Downloader::new()?;
 
@@ -114,7 +125,11 @@ impl<T: VersionProvider> ToolManager<T> {
 
         let tool_name = self.tool_name();
         let resolved = resolve_version(version)?;
-        console_output::print_step(1, 5, &format!("解析 {tool_name} 版本: {version} → {resolved}"));
+        console_output::print_step(
+            1,
+            5,
+            &format!("解析 {tool_name} 版本: {version} → {resolved}"),
+        );
 
         // 获取版本信息
         let version_info = self.api_client.get_version_info(&resolved).await?;
@@ -180,7 +195,12 @@ impl<T: VersionProvider> ToolManager<T> {
 
         // 注册
         console_output::print_step(5, 5, &format!("注册 {tool_name} 版本"));
-        let installed = self.create_installed_record(&resolved, version_dir, &version_info.channel, zig_version);
+        let installed = self.create_installed_record(
+            &resolved,
+            version_dir,
+            &version_info.channel,
+            zig_version,
+        );
 
         let mut index = self.path_manager.read_installed_index()?;
         self.remove_version_from_index(&mut index, &resolved);
@@ -492,8 +512,12 @@ impl<T: VersionProvider> ToolManager<T> {
 
     fn remove_version_at(&self, index: &mut InstalledIndex, pos: usize) {
         match self.kind {
-            ToolKind::Zig => { index.zig_versions.remove(pos); }
-            ToolKind::Zls => { index.zls_versions.remove(pos); }
+            ToolKind::Zig => {
+                index.zig_versions.remove(pos);
+            }
+            ToolKind::Zls => {
+                index.zls_versions.remove(pos);
+            }
         }
     }
 
@@ -507,22 +531,54 @@ impl<T: VersionProvider> ToolManager<T> {
 
     fn find_installed(&self, index: &InstalledIndex, version: &str) -> Option<()> {
         match self.kind {
-            ToolKind::Zig => index.zig_versions.iter().find(|v| v.version == version).map(|_| ()),
-            ToolKind::Zls => index.zls_versions.iter().find(|v| v.version == version).map(|_| ()),
+            ToolKind::Zig => index
+                .zig_versions
+                .iter()
+                .find(|v| v.version == version)
+                .map(|_| ()),
+            ToolKind::Zls => index
+                .zls_versions
+                .iter()
+                .find(|v| v.version == version)
+                .map(|_| ()),
         }
     }
 
-    fn find_installed_by_version(&self, index: &InstalledIndex, version: &str) -> Option<InstalledVersion> {
+    fn find_installed_by_version(
+        &self,
+        index: &InstalledIndex,
+        version: &str,
+    ) -> Option<InstalledVersion> {
         match self.kind {
-            ToolKind::Zig => index.zig_versions.iter().find(|v| v.version == version).cloned().map(InstalledVersion::Zig),
-            ToolKind::Zls => index.zls_versions.iter().find(|v| v.version == version).cloned().map(InstalledVersion::Zls),
+            ToolKind::Zig => index
+                .zig_versions
+                .iter()
+                .find(|v| v.version == version)
+                .cloned()
+                .map(InstalledVersion::Zig),
+            ToolKind::Zls => index
+                .zls_versions
+                .iter()
+                .find(|v| v.version == version)
+                .cloned()
+                .map(InstalledVersion::Zls),
         }
     }
 
     fn get_all_installed(&self, index: &InstalledIndex) -> Vec<InstalledVersion> {
         match self.kind {
-            ToolKind::Zig => index.zig_versions.iter().cloned().map(InstalledVersion::Zig).collect(),
-            ToolKind::Zls => index.zls_versions.iter().cloned().map(InstalledVersion::Zls).collect(),
+            ToolKind::Zig => index
+                .zig_versions
+                .iter()
+                .cloned()
+                .map(InstalledVersion::Zig)
+                .collect(),
+            ToolKind::Zls => index
+                .zls_versions
+                .iter()
+                .cloned()
+                .map(InstalledVersion::Zls)
+                .collect(),
         }
     }
 
