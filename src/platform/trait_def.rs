@@ -121,8 +121,14 @@ pub trait PlatformTrait: Send + Sync {
                 let p_path = Path::new(p.trim());
                 if cfg!(windows) {
                     // Windows 路径比较不区分大小写，且忽略尾部反斜杠
-                    let p_str = p_path.to_string_lossy().trim_end_matches('\\').to_lowercase();
-                    let bin_str = bin_dir.to_string_lossy().trim_end_matches('\\').to_lowercase();
+                    let p_str = p_path
+                        .to_string_lossy()
+                        .trim_end_matches('\\')
+                        .to_lowercase();
+                    let bin_str = bin_dir
+                        .to_string_lossy()
+                        .trim_end_matches('\\')
+                        .to_lowercase();
                     p_str == bin_str
                 } else {
                     p_path == bin_dir

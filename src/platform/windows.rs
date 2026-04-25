@@ -111,13 +111,7 @@ impl WindowsPlatform {
         let target_str = target.to_string_lossy();
         let link_str = link.to_string_lossy();
         let output = std::process::Command::new("cmd")
-            .args([
-                "/C",
-                "mklink",
-                "/J",
-                &link_str,
-                &target_str,
-            ])
+            .args(["/C", "mklink", "/J", &link_str, &target_str])
             .output()
             .map_err(|e| ZzmError::SymlinkFailed {
                 from: link.to_string_lossy().to_string(),
