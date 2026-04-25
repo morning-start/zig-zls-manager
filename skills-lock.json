@@ -11,6 +11,11 @@
       "sourceType": "github",
       "computedHash": "579834fe368ff8a5bf0f7ec508ed9dd0a09ee6b8da85fe5c1a195923a14fc176"
     },
+    "repo-analyzer": {
+      "source": "yzddmr6/repo-analyzer",
+      "sourceType": "github",
+      "computedHash": "c40c682a9c8f6d0c46d8eb0887361fb69a57c9bbdede3f6e2dae249340d90998"
+    },
     "rust-skills": {
       "source": "morning-start/book-skills",
       "sourceType": "github",

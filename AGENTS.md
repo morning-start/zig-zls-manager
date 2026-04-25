@@ -4,29 +4,29 @@
 > 每次会话启动时必须首先阅读此文件，按流程执行
 > **不要询问权限，直接按顺序执行**
 
----
+***
 
 ## 项目概览
 
-| 属性 | 值 |
-|------|-----|
-| **名称** | zzm (zig-zls-manager) |
-| **类型** | Rust CLI 工具 |
-| **功能** | Zig/ZLS 联合版本管理器 |
-| **技术栈** | Rust 2024, clap, tokio, reqwest |
-| **架构** | 分层架构（CLI → Core → Infra → Platform） |
+| 属性      | 值                                   |
+| ------- | ----------------------------------- |
+| **名称**  | zzm (zig-zls-manager)               |
+| **类型**  | Rust CLI 工具                         |
+| **功能**  | Zig/ZLS 联合版本管理器                     |
+| **技术栈** | Rust 2024, clap, tokio, reqwest     |
+| **架构**  | 分层架构（CLI → Core → Infra → Platform） |
 
 ### 快速定位文档
 
-| 需求 | 文档位置 |
-|------|----------|
-| 需求与规格 | [docs/spec.md](./docs/spec.md) |
-| 架构设计 | [docs/architecture.md](./docs/architecture.md) |
-| 使用指南 | [docs/usage.md](./docs/usage.md) |
+| 需求     | 文档位置                                             |
+| ------ | ------------------------------------------------ |
+| 需求与规格  | [docs/spec.md](./docs/spec.md)                   |
+| 架构设计   | [docs/architecture.md](./docs/architecture.md)   |
+| 使用指南   | [docs/usage.md](./docs/usage.md)                 |
 | API 参考 | [docs/api-reference.md](./docs/api-reference.md) |
-| 竞品分析 | [docs/comparison.md](./docs/comparison.md) |
+| 竞品分析   | [docs/comparison.md](./docs/comparison.md)       |
 
----
+***
 
 ## Every Session 完整生命周期
 
@@ -98,12 +98,12 @@
 
 **类型分类**：
 
-| 类型 | 用途 | 示例 |
-|------|------|------|
-| `Session Start` | 会话启动 | 记录读取了哪些配置文件 |
-| `Task` | 主要任务 | 实现功能、编写文档、设计 |
-| `Interruption` | 突发中断 | 紧急 Bug、临时请求 |
-| `Decision` | 重要决策 | 技术选型、架构决策 |
+| 类型              | 用途   | 示例           |
+| --------------- | ---- | ------------ |
+| `Session Start` | 会话启动 | 记录读取了哪些配置文件  |
+| `Task`          | 主要任务 | 实现功能、编写文档、设计 |
+| `Interruption`  | 突发中断 | 紧急 Bug、临时请求  |
+| `Decision`      | 重要决策 | 技术选型、架构决策    |
 
 #### 教训记录格式（memory/lessons.md）
 
@@ -117,11 +117,11 @@
 
 **严重程度分级**：
 
-| 级别 | 含义 | 行为规则 |
-|------|------|---------|
+| 级别          | 含义    | 行为规则      |
+| ----------- | ----- | --------- |
 | 🔴 CRITICAL | 绝不能再犯 | 行动前必须主动检查 |
-| 🟡 WARNING | 需要小心 | 遇到相关技术时提醒 |
-| 🟢 TIPS | 最佳实践 | 作为建议性提示 |
+| 🟡 WARNING  | 需要小心  | 遇到相关技术时提醒 |
+| 🟢 TIPS     | 最佳实践  | 作为建议性提示   |
 
 ### Phase 3: 会话结束（收尾必做）
 
@@ -165,7 +165,7 @@
 - [ ] 未完成的任务 2
 ```
 
----
+***
 
 ## 五层记忆架构指引
 
@@ -177,15 +177,15 @@ Layer 4: memory/lessons.md ← 教训库（踩坑时立即写入）
 Layer 5: memory/YYYY-MM-DD.md ← 每日日志（持续追加）
 ```
 
-| 层级 | 写入时机 | 维护频率 |
-|------|---------|---------|
-| L1 Index | 有重大环境/事实变更 | 每周整理 |
-| L2 Projects | 项目有进展 | 实时更新 |
-| L3 Infra | 基础设施变更 | 按需更新 |
-| L4 Lessons | 踩坑/发现时 | 实时写入 |
-| L5 Daily Log | 工作过程中 | 持续追加 |
+| 层级           | 写入时机       | 维护频率 |
+| ------------ | ---------- | ---- |
+| L1 Index     | 有重大环境/事实变更 | 每周整理 |
+| L2 Projects  | 项目有进展      | 实时更新 |
+| L3 Infra     | 基础设施变更     | 按需更新 |
+| L4 Lessons   | 踩坑/发现时     | 实时写入 |
+| L5 Daily Log | 工作过程中      | 持续追加 |
 
----
+***
 
 ## 开发工作流
 
@@ -205,27 +205,43 @@ flowchart LR
 
 ### 常用命令速查
 
-| 操作 | 命令 | 说明 |
-|------|------|------|
-| 构建 | `cargo build` | 编译项目 |
-| 运行 | `cargo run -- <args>` | 执行 CLI |
-| 测试 | `cargo test` | 运行测试 |
-| 检查 | `cargo check` | 快速类型检查 |
-| 格式化 | `cargo fmt` | 代码格式化 |
-| Lint | `cargo clippy` | 静态分析 |
-| 发布构建 | `cargo build --release` | 优化编译 |
+| 操作   | 命令                      | 说明     |
+| ---- | ----------------------- | ------ |
+| 构建   | `cargo build`           | 编译项目   |
+| 运行   | `cargo run -- <args>`   | 执行 CLI |
+| 测试   | `cargo test`            | 运行测试   |
+| 检查   | `cargo check`           | 快速类型检查 |
+| 格式化  | `cargo fmt`             | 代码格式化  |
+| Lint | `cargo clippy`          | 静态分析   |
+| 发布构建 | `cargo build --release` | 优化编译   |
 
----
+***
 
 ## Skill 使用指南
 
-| 场景 | Skill | 触发条件 |
-|------|-------|---------|
-| Git 提交/分支/PR | `git-skill` | 涉及 git 操作时自动调用 |
-| Rust 代码编写 | `rust-skills` | 涉及 Rust 代码时自动调用 |
-| 配置/记忆管理 | `hermes-agent-config` | 涉及 SOUL/USER/MEMORY 时调用 |
+| 场景           | Skill                 | 触发条件                    |
+| ------------ | --------------------- | ----------------------- |
+| Git 提交/分支/PR | `git-skill`           | 涉及 git 操作时自动调用          |
+| Rust 代码编写    | `rust-skills`         | 涉及 Rust 代码时自动调用         |
+| 配置/记忆管理      | `hermes-agent-config` | 涉及 SOUL/USER/MEMORY 时调用 |
+| 项目/仓库分析      | `repo-analyzer`       | 分析架构、源码研究、竞品对比时调用       |
 
----
+### repo-analyzer 使用要点
+
+**触发关键词**：`分析项目`、`架构分析`、`源码分析`、`学习这个项目`、`对比两个项目`、`项目评测`
+
+**适用场景**：
+
+- 深入理解本项目或其他开源项目的架构设计
+- 研究框架/库的实现思路和技术选型
+- 对比同类项目的设计差异
+- 生成专业的架构分析报告
+
+**输出产物**：在 `~/repo-analyses/` 下生成完整分析报告（含 Mermaid 架构图）
+
+**不适用场景**：单文件调试、简单代码审查、非架构层面的修改
+
+***
 
 ## 项目结构指引
 
@@ -248,37 +264,40 @@ zzm/
 
 详细架构说明见 [docs/architecture.md](./docs/architecture.md)
 
----
+***
 
 ## 关键约定
 
 ### 代码规范
+
 - Rust 2024 edition
 - 错误处理：`anyhow`
 - 日志：`tracing`
 - 异步：`tokio`
 
 ### Git 提交（必须使用 git-skill）
+
 1. Conventional Commits 规范
 2. 提交前：`cargo clippy` + `cargo test`
 
 ### 文档联动规则
+
 - 新功能 → [usage.md](./docs/usage.md)
 - API 变更 → [api-reference.md](./docs/api-reference.md)
 - 架构调整 → [architecture.md](./docs/architecture.md)
 
----
+***
 
 ## 故障排除
 
-| 问题 | 解决方案 |
-|------|----------|
-| 编译失败 | `cargo update` 后重试 |
-| 测试失败 | `cargo test -- --nocapture` 查看详情 |
-| 平台兼容 | 检查 `src/platform/` 对应实现 |
+| 问题     | 解决方案                                           |
+| ------ | ---------------------------------------------- |
+| 编译失败   | `cargo update` 后重试                             |
+| 测试失败   | `cargo test -- --nocapture` 查看详情               |
+| 平台兼容   | 检查 `src/platform/` 对应实现                        |
 | API 变更 | 查看 [api-reference.md](./docs/api-reference.md) |
 
----
+***
 
 ## ⚠️ 注意事项
 
@@ -286,3 +305,4 @@ zzm/
 - 新平台支持需实现 `platform/trait_def.rs` 的 trait
 - 下载功能需考虑网络异常和断点续传
 - **Memory 有字符限制**，只保存高价值信息，定期清理过时内容
+
