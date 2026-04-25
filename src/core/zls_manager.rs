@@ -95,7 +95,7 @@ impl ZlsManager {
 
         // ZLS 的 tar.xz 包通常只包含 zls 二进制文件
         // 但也可能有顶层目录，需要处理
-        self.reorganize_extracted_files(&extracted_root, &version_dir)?;
+        filesystem::reorganize_extracted_files(&extracted_root, &version_dir, "tmp_move_zls")?;
 
         // 设置可执行权限
         let zls_binary = self.path_manager.zls_binary_path(&resolved);
@@ -223,7 +223,10 @@ impl ZlsManager {
         console_output::print_success(&format!("已切换到 ZLS {}", resolved));
         console_output::print_info(&format!(
             "提示: 设置 ZLS_HOME={} 即可通过 ZLS_HOME 使用当前版本",
-            self.path_manager.install_dir().join("default-zls").display()
+            self.path_manager
+                .install_dir()
+                .join("default-zls")
+                .display()
         ));
         console_output::print_info("  或确保 bin 目录在 PATH 中（zzm info 查看详情）");
         Ok(resolved)
@@ -244,36 +247,6 @@ impl ZlsManager {
             .find(|v| v.version == active_version);
 
         Ok(installed)
-    }
-
-    /// 重新组织解压后的文件（同 ZigManager）
-    fn reorganize_extracted_files(
-        &self,
-        extracted_root: &std::path::Path,
-        version_dir: &std::path::Path,
-    ) -> Result<(), ZzmError> {
-        if extracted_root == version_dir {
-            return Ok(());
-        }
-
-        if extracted_root.starts_with(version_dir) && extracted_root.is_dir() {
-            let temp_dir = version_dir.with_extension("tmp_move_zls");
-            if temp_dir.exists() {
-                std::fs::remove_dir_all(&temp_dir).map_err(ZzmError::Io)?;
-            }
-
-            std::fs::rename(extracted_root, &temp_dir).map_err(ZzmError::Io)?;
-
-            for entry in std::fs::read_dir(&temp_dir).map_err(ZzmError::Io)? {
-                let entry = entry.map_err(ZzmError::Io)?;
-                let dest = version_dir.join(entry.file_name());
-                std::fs::rename(entry.path(), dest).map_err(ZzmError::Io)?;
-            }
-
-            let _ = std::fs::remove_dir(&temp_dir);
-        }
-
-        Ok(())
     }
 
     /// 在版本目录中查找 ZLS 二进制文件并创建正确名称的链接
@@ -395,10 +368,8 @@ mod tests {
         let version_dir = temp_dir.path().join("0.13.0");
         fs::create_dir_all(&version_dir).unwrap();
 
-        let platform = crate::platform::detect_platform();
-        let manager = ZlsManager::new(platform).unwrap();
-
-        let result = manager.reorganize_extracted_files(&version_dir, &version_dir);
+        let result =
+            filesystem::reorganize_extracted_files(&version_dir, &version_dir, "tmp_move_zls");
         assert!(result.is_ok());
     }
 
@@ -413,10 +384,7 @@ mod tests {
         fs::create_dir_all(&sub_dir).unwrap();
         fs::write(sub_dir.join("zls.exe"), "binary").unwrap();
 
-        let platform = crate::platform::detect_platform();
-        let manager = ZlsManager::new(platform).unwrap();
-
-        let result = manager.reorganize_extracted_files(&sub_dir, &version_dir);
+        let result = filesystem::reorganize_extracted_files(&sub_dir, &version_dir, "tmp_move_zls");
         assert!(result.is_ok());
 
         // 验证文件已移到 version_dir 根目录

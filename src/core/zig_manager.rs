@@ -120,7 +120,7 @@ impl ZigManager {
         // 检查解压后的目录结构
         // Zig 的 zip 包通常包含一个顶层目录 zig-platform-version/
         // 我们需要将内容移动到正确的位置
-        self.reorganize_extracted_files(&extracted_root, &version_dir, &resolved)?;
+        filesystem::reorganize_extracted_files(&extracted_root, &version_dir, "tmp_move")?;
 
         // 设置可执行权限
         let zig_binary = self.path_manager.zig_binary_path(&resolved);
@@ -261,50 +261,6 @@ impl ZigManager {
 
         Ok(installed)
     }
-
-    /// 重新组织解压后的文件
-    ///
-    /// Zig 的压缩包通常有如下结构：
-    /// - zig-x86_64-windows-0.13.0/zig.exe
-    /// - zig-x86_64-windows-0.13.0/lib/
-    ///
-    /// 我们需要将内容移到版本目录的根部
-    fn reorganize_extracted_files(
-        &self,
-        extracted_root: &std::path::Path,
-        version_dir: &std::path::Path,
-        _version: &str,
-    ) -> Result<(), ZzmError> {
-        // 如果 extracted_root 和 version_dir 相同，说明文件已经在正确位置
-        if extracted_root == version_dir {
-            return Ok(());
-        }
-
-        // extracted_root 是 version_dir 的子目录（如 version_dir/zig-platform-version/）
-        // 需要将子目录的内容移动到 version_dir 中
-        if extracted_root.starts_with(version_dir) && extracted_root.is_dir() {
-            // 在临时目录中操作
-            let temp_dir = version_dir.with_extension("tmp_move");
-            if temp_dir.exists() {
-                std::fs::remove_dir_all(&temp_dir).map_err(ZzmError::Io)?;
-            }
-
-            // 将 extracted_root 重命名为 temp_dir
-            std::fs::rename(extracted_root, &temp_dir).map_err(ZzmError::Io)?;
-
-            // 将 temp_dir 中的内容移动到 version_dir
-            for entry in std::fs::read_dir(&temp_dir).map_err(ZzmError::Io)? {
-                let entry = entry.map_err(ZzmError::Io)?;
-                let dest = version_dir.join(entry.file_name());
-                std::fs::rename(entry.path(), dest).map_err(ZzmError::Io)?;
-            }
-
-            // 清理临时目录
-            let _ = std::fs::remove_dir(&temp_dir);
-        }
-
-        Ok(())
-    }
 }
 
 // ========== 单元测试 ==========
@@ -351,11 +307,8 @@ mod tests {
         let version_dir = temp_dir.path().join("0.13.0");
         fs::create_dir_all(&version_dir).unwrap();
 
-        let platform = crate::platform::detect_platform();
-        let manager = ZigManager::new(platform).unwrap();
-
         // 测试当 extracted_root 和 version_dir 相同时
-        let result = manager.reorganize_extracted_files(&version_dir, &version_dir, "0.13.0");
+        let result = filesystem::reorganize_extracted_files(&version_dir, &version_dir, "tmp_move");
         assert!(result.is_ok());
     }
 
@@ -412,10 +365,7 @@ mod tests {
         fs::create_dir_all(&sub_dir).unwrap();
         fs::write(sub_dir.join("zig.exe"), "binary").unwrap();
 
-        let platform = crate::platform::detect_platform();
-        let manager = ZigManager::new(platform).unwrap();
-
-        let result = manager.reorganize_extracted_files(&sub_dir, &version_dir, "0.13.0");
+        let result = filesystem::reorganize_extracted_files(&sub_dir, &version_dir, "tmp_move");
         assert!(result.is_ok());
 
         // 验证文件已移到 version_dir 根目录
