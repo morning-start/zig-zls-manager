@@ -47,7 +47,7 @@
 
 ### 🌅 每次启动会话（Every Session）
 
-**必须执行** — 使用 **hermes-agent-config** 技能规范：
+**⚠️ 这是强制流程，不是建议。收到用户消息后，必须先执行以下步骤再开始任务。**
 
 ```
 ┌─ Step 1: 身份加载 ──────────────────────────────┐
@@ -74,34 +74,30 @@
 └──────────────────────────────────────────────────┘
 ```
 
-**⚠️ 不要询问权限，直接执行。**
+**执行方式**：使用 `read_file` 工具读取上述文件，不要询问权限，直接执行。
+**跳过条件**：仅当用户明确说"跳过启动流程"时才可跳过。
 
 ### 📝 Memory 写入流程（完成任务后）
 
-**必须执行** — 使用 **hermes-agent-config** 的 Memory 规范：
+**⚠️ 强制执行。以下任一条件触发时，必须写入 Memory：**
 
+| 触发条件 | 写入目标 | 格式 |
+|---------|---------|------|
+| 完成一个功能/修复 | `memory/YYYY-MM-DD.md` | `## HH:MM - [TYPE]: 标题` |
+| 状态变更（阶段切换、阻塞解除）| `memory/projects.md` | 更新对应项目状态 |
+| 踩坑/发现 bug/找到 workaround | `memory/lessons.md` | `🔴/🟡/🟢 + 问题描述 + 解决方案` |
+| 新工具/服务器/配置变更 | `MEMORY.md` 或 `memory/infra.md` | 更新环境信息 |
+
+**日志格式**：
 ```
-┌─ 判断写入类型 ───────────────────────────────────┐
-│                                                   │
-│  📅 日志记录 → 追加到 memory/YYYY-MM-DD.md       │
-│     格式: ## HH:MM - [TYPE]: 标题                │
-│           - 做了什么                              │
-│           - 关键决策                              │
-│           - **Lesson**: 学到了什么（可选）        │
-│           - TODO: 后续步骤                        │
-│                                                   │
-│  📊 项目进展 → 更新 memory/projects.md            │
-│     触发: 完成功能、状态变更、阻塞解决             │
-│                                                   │
-│  💡 教训记录 → 追加到 memory/lessons.md           │
-│     触发: 踩坑、发现 bug、找到 workaround          │
-│     标记: 🔴 Critical / 🟡 Warning / 🟢 Tip      │
-│                                                   │
-│  🔧 环境变更 → 更新 MEMORY.md 或 memory/infra.md  │
-│     触发: 新工具安装、服务器变更、配置更改         │
-│                                                   │
-└───────────────────────────────────────────────────┘
+## HH:MM - [TYPE]: 标题
+- 做了什么
+- 关键决策
+- **Lesson**: 学到了什么（可选）
+- TODO: 后续步骤
 ```
+
+**TYPE 取值**: `Task`（开发任务）/ `Fix`（修复）/ `Refactor`（重构）/ `Doc`（文档）/ `Config`（配置）
 
 **容量管理**：MEMORY.md 保持 <40 行，定期归档旧信息。
 
@@ -141,46 +137,40 @@ cargo build --release
 
 ## 🛠 技能调用指南
 
+> **⚠️ 核心原则：技能是约束，不是建议。以下场景必须调用对应技能。**
+
 ### 1️⃣ hermes-agent-config（Hermes Agent 规范）
 
-**⚠️ 所有涉及以下操作时，必须使用此技能：**
-- 修改 SOUL.md / USER.md / AGENTS.md
-- 管理 memory/ 日志文件
-- 理解或优化 Agent 行为规范
-
-**调用方式**: 使用 hermes-agent-config 技能，遵循其 Session 启动和 Memory 写入规范。
+**强制调用场景**：
+- 会话启动时（读取身份和上下文）
+- 修改 SOUL.md / USER.md / AGENTS.md 时
+- 写入 memory/ 日志时
+- 理解或优化 Agent 行为规范时
 
 ### 2️⃣ git-skill（Git 操作）
 
-**⚠️ 所有 Git 操作使用此技能：**
-- 提交: `type(scope): description`
-- type = feat / fix / docs / style / refactor / test / chore
-
-**调用方式**: 使用 git-skill 技能完成。
+**强制调用场景**：
+- 任何 `git commit` / `git push` / `git merge` 操作
+- 提交格式: `type(scope): 中文描述`（type = feat/fix/docs/style/refactor/test/chore）
 
 ### 3️⃣ rust-skills（Rust 开发）
 
-**按场景选择子技能：**
+**强制调用场景**：
+- 编写或修改 Rust 代码时（至少激活 rust-skills 获取子技能列表）
+- 遇到所有权/借用/生命周期问题时 → `rust-ownership-skill`
+- 遇到错误处理设计问题时 → `rust-error-handling-skill`
+- 遇到异步编程问题时 → `rust-async-skill`
+- 遇到泛型/trait 设计时 → `rust-generics`
 
-| 场景 | 子技能 |
-|------|--------|
-| 所有权/借用 | rust-ownership-skill |
-| 错误处理 | rust-error-handling-skill |
-| 异步编程 | rust-async-skill |
-| CLI 开发 | rust-cli-project-skill |
-| 测试 | rust-testing-doc-skill |
-| 其他 | 查看 `.trae/skills/rust-skills/SKILL.md` 完整列表 |
-
-**调用方式**: 使用 rust-skills 技能集中的对应子技能。
+**可选调用**：简单注释修改、格式调整等不需要技能指导
 
 ### 4️⃣ repo-analyzer（项目/仓库深度分析）
 
-**⚠️ 涉及以下场景时，使用此技能（仅限本项目）：**
-- **分析项目/仓库**: "分析这个项目"、"架构分析"、"源码分析"
-- **学习/研究**: "研究这个框架"、"看看怎么实现的"
-- **输出**: 在 `docs/analyses/` 下生成专业架构报告（含 Mermaid 图）
+**强制调用场景**：
+- 用户要求"分析项目/仓库/架构"时
+- 需要跨模块理解代码关系时
 
-**不适用**: 单文件调试、简单代码审查、非架构层面的修改
+**不适用**：单文件调试、简单代码审查
 
 ---
 
@@ -206,22 +196,25 @@ zzm/
 
 ## ✅ 工作检查清单
 
-### 🌅 会话启动时（Every Session）
+> **⚠️ 这些不是备忘，是执行检查点。每个阶段完成后必须自检。**
+
+### 🌅 会话启动时（Every Session）— 强制
 - [ ] Step 1: 读 SOUL.md + USER.md（身份加载）
 - [ ] Step 2: 读 memory/今天+昨天日志 + MEMORY.md（上下文恢复）
 - [ ] Step 3: 按需读 projects.md / lessons.md / infra.md（状态同步）
 - [ ] Step 4: 检查 Cargo.toml + TODO.md + ROADMAP.md（项目状态）
 
-### 🔨 开发过程中
-- [ ] 用 `rust-skills` 对应子技能指导 Rust 实现
-- [ ] 遇到坑/教训 → 准备记录到 memory/lessons.md
+### 🔨 开发过程中 — 按需
+- [ ] 写/改 Rust 代码前 → 激活 `rust-skills` 对应子技能
+- [ ] 遇到坑/教训 → 记录到 memory/lessons.md
+- [ ] 架构级变更 → 先读 docs/architecture.md 理解现有设计
 
-### ✅ 完成任务后（必须执行）
+### ✅ 完成任务后 — 强制
 - [ ] `cargo fmt --all`
 - [ ] `cargo clippy -- -D warnings`
 - [ ] `cargo test`
-- [ ] **📝 写入 Memory 日志**（按流程选择类型）
-- [ ] 用 `git-skill` 提交代码
+- [ ] 📝 写入 Memory 日志（按触发条件表选择类型和目标文件）
+- [ ] 用 `git-skill` 提交代码（如用户要求）
 - [ ] 文档联动更新（新功能→usage.md / API变更→api-reference.md / 架构调整→architecture.md）
 
 ---
