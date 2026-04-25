@@ -2,10 +2,13 @@
 
 ## 📋 文档信息
 
-- **版本**: v1.0.0
+- **版本**: v1.1.0
 - **创建日期**: 2026-04-23
+- **最后更新**: 2026-04-25
 - **适用版本**: zig-zls-manager v0.1.0+
 - **关联文档**: [spec.md](./spec.md) | [architecture.md](./architecture.md)
+
+> **标注说明**: 标有 `🚧 Phase 2` 的功能尚未在当前版本实现，将在后续版本中提供。
 
 ---
 
@@ -414,7 +417,7 @@ zzm info
 💡 提示: 运行 'zzm --help' 查看所有可用命令
 ```
 
-### 2.4 项目级版本管理
+### 2.4 项目级版本管理 🚧 Phase 2
 
 #### 2.4.1 初始化项目配置
 
@@ -537,7 +540,7 @@ zzm ide config vscode
 3. 重启 VS Code 或重新加载窗口
 4. 打开 `.zig` 文件，验证 ZLS 是否工作
 
-#### 2.5.2 Neovim 集成
+#### 2.5.2 Neovim 集成 🚧 Phase 2
 
 ```bash
 # 生成 Neovim LSP 配置片段
@@ -573,7 +576,7 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 })
 ```
 
-#### 2.5.3 Helix 集成
+#### 2.5.3 Helix 集成 🚧 Phase 2
 
 Helix 会自动检测 PATH 中的 `zig` 和 `zls`，无需额外配置。
 
@@ -953,7 +956,7 @@ Add-Content $PROFILE ". $HOME\.zzm\completion.ps1"
 . $PROFILE
 ```
 
-### 4.4 Shell 钩子（自动切换版本）
+### 4.4 Shell 钩子（自动切换版本） 🚧 Phase 2
 
 **需求**：进入项目目录时自动切换版本
 

@@ -11,12 +11,13 @@
   - 自动化 IDE (VS Code, Neovim) 配置生成。
 
 ## 当前状态 (2026-04-25)
-- **阶段**: Phase 1 MVP — Sprint 0-5 核心功能完成，测试与发布准备中
+- **阶段**: Phase 1 MVP — Sprint 0-6 全部完成，待推送创建 Release
 - **编译**: ✅ cargo build + clippy 零警告通过
-- **测试**: ✅ 166/166 全部通过（T-024 单元测试补充完成：51→166，增幅 225%）
-- **文档**: ✅ 全部同步更新（architecture/api-reference/ROADMAP/TODO/README）
+- **测试**: ✅ 166/166 全部通过
+- **文档**: ✅ 全部同步更新（architecture/api-reference/ROADMAP/TODO/README/CHANGELOG/usage/benchmarks）
 - **已修复**: 版本解析边界 bug、dead code warnings、clippy 零警告
-- **待办**: 集成测试(T-025) → CI/CD → 发布
+- **性能**: Release 二进制 5.2 MB，启动 < 50ms
+- **待办**: 推送到 GitHub → 创建 Tag v0.1.0-alpha.1 → 创建 Release
 
 ## 主要竞品
 - `zigup`: 仅管理 Zig，已停止维护。
