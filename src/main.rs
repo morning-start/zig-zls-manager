@@ -506,8 +506,10 @@ async fn cmd_info(
         ("平台", platform.name().to_string()),
         ("目标架构", platform::current_target_triple().to_string()),
         ("安装目录", install_dir),
+        ("default 目录", platform.default_dir().to_string_lossy().to_string()),
         ("bin 目录", bin_dir),
         ("bin 在 PATH 中", in_path.to_string()),
+        ("ZZM_ROOT", std::env::var("ZZM_ROOT").unwrap_or_else(|_| "(未设置，使用默认路径)".to_string())),
         ("当前 Zig", zig_version),
         ("当前 ZLS", zls_version),
         ("已安装 Zig", format!("{} 个版本", installed_zig.len())),
@@ -518,6 +520,20 @@ async fn cmd_info(
         }),
     ];
     render_kv_table("环境信息", &info_items);
+
+    // 显示环境变量提示
+    if zig_current.is_some() {
+        console_output::print_info(&format!(
+            "提示: 设置 ZIG_HOME={} 即可通过 ZIG_HOME 使用当前 Zig 版本",
+            platform.default_dir().display()
+        ));
+    }
+    if zls_current.is_some() {
+        console_output::print_info(&format!(
+            "提示: 设置 ZLS_HOME={} 即可通过 ZLS_HOME 使用当前 ZLS 版本",
+            platform.default_install_dir().join("default-zls").display()
+        ));
+    }
 
     Ok(())
 }
@@ -730,6 +746,28 @@ async fn cmd_doctor(platform: &dyn platform::PlatformTrait) -> Result<(), utils:
                 "✓ 已配置".to_string()
             } else {
                 "✗ 未配置，请将 bin 目录加入 PATH".to_string()
+            },
+        ),
+        (
+            "ZZM_ROOT",
+            std::env::var("ZZM_ROOT").unwrap_or_else(|_| "(未设置)".to_string()),
+        ),
+        (
+            "default 链接",
+            {
+                let default_dir = platform.default_dir();
+                if default_dir.exists() {
+                    if cfg!(windows) {
+                        "✓ 已配置".to_string()
+                    } else {
+                        match std::fs::read_link(&default_dir) {
+                            Ok(target) => format!("✓ -> {}", target.display()),
+                            Err(_) => "✓ 已存在".to_string(),
+                        }
+                    }
+                } else {
+                    "✗ 未配置".to_string()
+                }
             },
         ),
     ];
