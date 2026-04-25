@@ -10,10 +10,10 @@ pub mod version_use;
 pub mod zls;
 
 use crate::core::tool_manager::{ToolKind, ToolManager};
-use crate::infra::zig_api::ZigApiClient;
-use crate::infra::zls_api::ZlsApiClient;
 use crate::infra::cache::CacheManager;
 use crate::infra::path_manager::PathManager;
+use crate::infra::zig_api::ZigApiClient;
+use crate::infra::zls_api::ZlsApiClient;
 use crate::platform::PlatformTrait;
 use crate::utils::error::ZzmError;
 

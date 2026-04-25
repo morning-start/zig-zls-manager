@@ -62,7 +62,8 @@ pub async fn cmd_zls(
                     let rows: Vec<InstalledVersionRow> = versions
                         .iter()
                         .map(|v| {
-                            let is_active = index.active_zls.as_ref() == Some(&v.version().to_string());
+                            let is_active =
+                                index.active_zls.as_ref() == Some(&v.version().to_string());
                             InstalledVersionRow {
                                 version: v.version().to_string(),
                                 channel: v.zig_version().unwrap_or_default().to_string(),
