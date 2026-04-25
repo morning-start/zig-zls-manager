@@ -12,9 +12,10 @@
 
 ## 当前状态 (2026-04-25)
 - **阶段**: Phase 1 MVP — Sprint 0-5 核心功能完成，测试与发布准备中
-- **编译**: ✅ cargo check 通过（22 dead code warnings）
-- **测试**: ❌ 50/51 通过（test_resolve_version_edge_cases 失败）
-- **待办**: 修复测试 bug → 补充单元/集成测试 → CI/CD → 发布
+- **编译**: ✅ cargo build 零警告通过（22 个 dead code 已全部标注 `#[allow(dead_code)]`）
+- **测试**: ✅ 51/51 全部通过（test_resolve_version_edge_cases 已修复）
+- **已修复**: 版本解析边界 bug（`"0."` 正确返回错误）、全部 dead code warnings
+- **待办**: 补充单元/集成测试 → CI/CD → 发布
 
 ## 主要竞品
 - `zigup`: 仅管理 Zig，已停止维护。

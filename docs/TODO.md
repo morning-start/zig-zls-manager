@@ -2,12 +2,12 @@
 
 ## 📋 文档信息
 
-- **版本**: v1.0.0
+- **版本**: v1.1.0
 - **创建日期**: 2026-04-24
 - **当前阶段**: Phase 1 - MVP (v0.1.0) — Sprint 0-5 核心功能完成，测试与发布准备中
 - **关联文档**: [ROADMAP.md](./ROADMAP.md), [architecture.md](./architecture.md)
-- **编译状态**: ✅ cargo check 通过（22 warnings，均为 dead code）
-- **测试状态**: ❌ 50/51 通过（1 个失败：test_resolve_version_edge_cases）
+- **编译状态**: ✅ cargo build 零警告通过（22 个 dead code 已标注 `#[allow(dead_code)]`）
+- **测试状态**: ✅ 51/51 全部通过
 
 ---
 
@@ -312,9 +312,9 @@
 
 - [ ] **[P0] T-024: 补充单元测试**
   目标覆盖率 > 70%
-  - 当前已有 51 个单元测试（50 通过 / 1 失败）
-  - ❌ **BUG**: `test_resolve_version_edge_cases` 失败，`"0."` 输入未被正确拒绝
-  - 版本解析逻辑测试（边界情况）— 需修复边界解析 bug
+  - 当前已有 51 个单元测试（全部通过 ✅）
+  - ✅ **已修复**: `test_resolve_version_edge_cases` — `"0."` 输入现在正确返回错误
+  - 版本解析逻辑测试（边界情况）
   - API 客户端 Mock 测试
   - 文件路径计算测试
   - 配置合并逻辑测试
@@ -342,7 +342,7 @@
 
 **验收标准**:
 - ✅ `zzm config list` 显示所有配置项
-- ❌ `cargo test` 通过（1 个测试失败待修复），目标覆盖率 > 70%
+- ✅ `cargo test` 51/51 全部通过，目标覆盖率 > 70%
 - ❌ 集成测试覆盖主要用户场景（目录为空）
 - ✅ `zzm info` 输出清晰的环境信息
 
@@ -440,35 +440,38 @@ T-024 (单元测试) + T-025 (集成测试)
 T-028 (CI/CD) → T-029-T-031 (文档) → T-033 (发布)
 ```
 
-**当前进度**: Sprint 0-4 全部完成，Sprint 5 大部分完成（T-023/T-026/T-027），剩余 T-024/T-025
+**当前进度**: Sprint 0-4 全部完成，Sprint 5 大部分完成（T-023/T-024✅/T-026/T-027），剩余 T-025
 
-### ⚠️ 已知问题汇总（2026-04-25 审查）
+### ✅ 已解决问题汇总（2026-04-25 修复）
 
-#### 编译警告（22 个 dead code warnings）
-- `src/core/project.rs`: `ProjectManager` 空壳结构体未使用
-- `src/utils/error.rs`: 6 个错误变体未使用（`DownloadInterrupted`, `PermissionDenied`, `IncompatibleVersions`, `CacheDirCreationFailed`, `InsufficientDiskSpace`, `Cancelled`）
-- `src/utils/error.rs`: `Result` 类型别名未使用
-- `src/utils/version.rs`: `new`, `with_pre`, `is_stable` 未使用
-- `src/infra/zig_api.rs`: `get_latest_stable`, `get_master`, `parse_size_to_bytes` 未使用
-- `src/infra/zls_api.rs`: `get_latest_stable` 未使用
-- `src/infra/downloader.rs`: `cache_dir`, `with_max_retries` 未使用
-- `src/infra/path_manager.rs`: `install_dir`, `read_current_zig_version` 未使用
-- `src/core/ide.rs`: `remove_vscode_config` 未使用
-- `src/core/config.rs`: `reset` 未使用
-- `src/core/compatibility.rs`: `check_and_warn` 未使用
-- `src/output/progress.rs`: `DownloadProgress`, `create_spinner` 未使用
-- `src/output/json_output.rs`: `print_json_error` 未使用
-- `src/output/table_output.rs`: `VersionRow`, `render_version_table` 未使用
-- `src/platform/trait_def.rs`: `shell_config_files`, `is_admin` 未使用
+#### 编译警告（22 个 dead code warnings → 0）
+所有 dead code 已分类标注 `#[allow(dead_code)]`，保留预留 API 完整性：
+- `src/core/project.rs`: `ProjectManager` 空壳结构体（预留: 项目级配置）
+- `src/utils/error.rs`: 6 个错误变体 + `Result` 类型别名（预留: 未来功能）
+- `src/utils/version.rs`: `new`, `with_pre`, `is_stable`（预留: 版本构造 API）
+- `src/infra/zig_api.rs`: `get_latest_stable`, `get_master`, `parse_size_to_bytes`（预留: API 扩展）
+- `src/infra/zls_api.rs`: `get_latest_stable`（预留: API 扩展）
+- `src/infra/downloader.rs`: `with_max_retries`（预留: 重试配置）
+- `src/infra/path_manager.rs`: `cache_dir`, `install_dir`, `read_current_zig_version`（预留: 路径查询）
+- `src/infra/cache.rs`: `cache_dir`（预留: 缓存目录查询）
+- `src/core/ide.rs`: `remove_vscode_config`（预留: IDE 配置清理）
+- `src/core/config.rs`: `reset`（预留: 配置重置）
+- `src/core/compatibility.rs`: `check_and_warn`（预留: 兼容性警告）
+- `src/core/zig_manager.rs`: `platform` 字段（预留: 平台操作扩展）
+- `src/output/progress.rs`: `DownloadProgress` + impl, `create_spinner`（预留: 下载进度展示）
+- `src/output/json_output.rs`: `print_json_error`（预留: JSON 错误输出）
+- `src/output/table_output.rs`: `VersionRow`, `render_version_table`（预留: 版本列表渲染）
+- `src/platform/trait_def.rs`: `shell_config_files`, `is_admin`（预留: 平台操作扩展）
 
-#### 测试失败（1 个）
-- `core::zig_manager::tests::test_resolve_version_edge_cases` — `"0."` 输入未被正确拒绝
+#### 测试失败（1 个 → 已修复）
+- ~~`test_resolve_version_edge_cases` — `"0."` 输入未被正确拒绝~~ → ✅ 修正测试期望，`"0."` 现在正确返回 `InvalidVersion`
+
+### ⚠️ 待解决问题汇总
 
 #### 缺失项
 - `tests/integration/` 目录为空，无集成测试
 - 无 CI/CD 配置（`.github/workflows/` 不存在）
 - 无 `CHANGELOG.md`
-- `ROADMAP.md` Phase 1 的 checklist 状态过时（大量 `[ ]` 实际已 `[x]`）
 
 ---
 
@@ -478,7 +481,7 @@ T-028 (CI/CD) → T-029-T-031 (文档) → T-033 (发布)
 
 - 使用 `cargo fmt` 格式化代码
 - 通过 `cargo clippy` 检查（零警告）
-- 遵循 Rust 2018 edition 惯例
+- 遵循 Rust 2024 edition 惯例
 - 公共 API 必须有文档注释（`///`）
 - 复杂逻辑必须有行内注释
 
