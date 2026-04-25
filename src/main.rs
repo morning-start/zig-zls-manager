@@ -825,6 +825,42 @@ async fn cmd_doctor(platform: &dyn platform::PlatformTrait) -> Result<(), utils:
         }
     }
 
+    // Windows 特定检查：UTF-8 编码
+    if cfg!(windows) {
+        println!();
+        println!("  --- Windows 专项检查 ---");
+        // 检查 ActiveCodePage 是否为 UTF-8 (65001)
+        let codepage = std::process::Command::new("chcp")
+            .output()
+            .ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .unwrap_or_default();
+        let is_utf8 = codepage.contains("65001");
+        if is_utf8 {
+            println!("  UTF-8 代码页: ✓ 已启用 (65001)");
+        } else {
+            println!("  UTF-8 代码页: ✗ 未启用（建议开启以避免中文乱码）");
+            println!("    设置方式: Windows 设置 → 时间和语言 → 语言和区域 → 管理语言设置 → 更改系统区域设置 → 勾选 \"Beta: 使用 Unicode UTF-8 提供全球语言支持\"");
+        }
+    }
+
+    // 推荐的环境变量配置
+    println!();
+    println!("  --- 推荐配置 ---");
+    let default_dir = platform.default_dir();
+    println!(
+        "  ZIG_HOME={} (设置后 zig 将自动使用当前版本)",
+        default_dir.display()
+    );
+    if let Ok(index) = PathManager::new(platform.clone_box()).read_installed_index() {
+        if index.active_zls.is_some() {
+            println!(
+                "  ZLS_HOME={} (设置后 zls 将自动使用当前版本)",
+                platform.default_install_dir().join("default-zls").display()
+            );
+        }
+    }
+
     Ok(())
 }
 
