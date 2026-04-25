@@ -12,11 +12,12 @@
 
 ## 当前状态 (2026-04-25)
 - **阶段**: Phase 1 MVP 完成 + 架构优化重构完成
-- **编译**: ✅ cargo check 零警告通过
-- **测试**: ✅ 157/157 全部通过
+- **编译**: ✅ cargo clippy -D warnings 零警告通过
+- **测试**: ✅ 187/187 全部通过
 - **架构变更**: ZigManager/ZlsManager → ToolManager<T: VersionProvider> 泛型抽象
 - **新增模块**: core::channel, core::tool_manager, infra::api_cache
 - **删除模块**: core::zig_manager, core::zls_manager
+- **最近修复**: T-052 Zig API serde 模型不匹配（`zzm list --remote` 解码错误）
 - **待办**: 推送到 GitHub → 创建 Tag → 创建 Release
 
 ## 架构优化要点
@@ -26,6 +27,10 @@
 - ApiCache<T> 泛型缓存层
 - 流式 SHA256 校验（内存恒定）
 - compatibility::VersionParts → utils::version::Version
+
+## 关键教训
+- **serde 模型必须基于实际 API 响应设计**: Zig API 返回扁平平台键（如 `x86_64-macos`）+ `{ tarball, shasum, size }`，而非嵌套的 `ZigPlatforms` 结构。使用 `#[serde(flatten)]` 捕获动态键名，`#[serde(rename)]` 解决 JSON camelCase 与 Rust snake_case 命名冲突。
+- **`is_platform_key()` 过滤模式**: 当 `#[serde(flatten)]` 捕获了非平台键（如 `src`、`bootstrap`）时，需在业务逻辑中通过白名单/特征匹配过滤。
 
 ## 主要竞品
 - `zigup`: 仅管理 Zig，已停止维护。
