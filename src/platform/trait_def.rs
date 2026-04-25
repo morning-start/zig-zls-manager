@@ -177,6 +177,22 @@ pub fn current_target_triple() -> &'static str {
     }
 }
 
+/// 解析目标三元组为 (os, arch) 部分
+///
+/// 统一了之前 `zig_api::parse_target_triple` 和 `zls_api::parse_zls_target_triple`
+/// 的重复实现。
+pub fn parse_target_triple(triple: &str) -> Option<(&str, &str)> {
+    match triple {
+        "x86_64-windows" => Some(("windows", "x86_64")),
+        "aarch64-windows" => Some(("windows", "aarch64")),
+        "x86_64-macos" => Some(("macos", "x86_64")),
+        "aarch64-macos" => Some(("macos", "aarch64")),
+        "x86_64-linux" => Some(("linux", "x86_64")),
+        "aarch64-linux" => Some(("linux", "aarch64")),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,5 +215,22 @@ mod tests {
         // 在支持的平台上，不应返回 "unknown"
         let triple = current_target_triple();
         assert_ne!(triple, "unknown", "当前平台不受支持");
+    }
+
+    #[test]
+    fn test_parse_target_triple() {
+        assert_eq!(
+            parse_target_triple("x86_64-windows"),
+            Some(("windows", "x86_64"))
+        );
+        assert_eq!(
+            parse_target_triple("aarch64-macos"),
+            Some(("macos", "aarch64"))
+        );
+        assert_eq!(
+            parse_target_triple("x86_64-linux"),
+            Some(("linux", "x86_64"))
+        );
+        assert_eq!(parse_target_triple("unknown"), None);
     }
 }
