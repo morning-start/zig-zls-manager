@@ -10,14 +10,14 @@
   - 支持项目级配置 (.zzmrc) 锁定版本组合。
   - 自动化 IDE (VS Code, Neovim) 配置生成。
 
-## 当前状态 (2026-04-25)
-- **阶段**: Phase 1 MVP 完成 + 架构优化重构完成
+## 当前状态 (2026-04-26)
+- **阶段**: Phase 1 MVP 完成 + 架构优化重构完成 + 续传功能
 - **编译**: ✅ cargo clippy -D warnings 零警告通过
-- **测试**: ✅ 187/187 全部通过
+- **测试**: ✅ 190/190 全部通过
 - **架构变更**: ZigManager/ZlsManager → ToolManager<T: VersionProvider> 泛型抽象
 - **新增模块**: core::channel, core::tool_manager, infra::api_cache
 - **删除模块**: core::zig_manager, core::zls_manager
-- **最近修复**: T-052 Zig API serde 模型不匹配（`zzm list --remote` 解码错误）
+- **最近新增**: HTTP Range 断点续传（.part 文件机制）+ 远程列表日期列 + 大小格式化
 - **待办**: 推送到 GitHub → 创建 Tag → 创建 Release
 
 ## 架构优化要点
