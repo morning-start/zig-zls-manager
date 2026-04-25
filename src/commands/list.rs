@@ -1,5 +1,4 @@
 use crate::commands::AppContext;
-use crate::infra::zig_api;
 use crate::output::console_output;
 use crate::output::json_output;
 use crate::output::table_output::{
@@ -25,10 +24,7 @@ pub async fn cmd_list(
                 .iter()
                 .map(|v| RemoteVersionRow {
                     version: v.version.clone(),
-                    channel: match v.channel {
-                        zig_api::ZigChannel::Stable => "stable".to_string(),
-                        zig_api::ZigChannel::Nightly => "nightly".to_string(),
-                    },
+                    channel: v.channel.to_string(),
                     size: v.asset.as_ref().map(|a| a.size.clone()).unwrap_or_default(),
                     installed: String::new(), // TODO: 交叉检查
                 })
@@ -51,11 +47,11 @@ pub async fn cmd_list(
             let rows: Vec<InstalledVersionRow> = versions
                 .iter()
                 .map(|v| {
-                    let is_active = index.active_zig.as_ref() == Some(&v.version);
+                    let is_active = index.active_zig.as_ref() == Some(&v.version().to_string());
                     InstalledVersionRow {
-                        version: v.version.clone(),
-                        channel: v.channel.clone(),
-                        path: v.install_path.to_string_lossy().to_string(),
+                        version: v.version().to_string(),
+                        channel: v.channel().map(|c| c.to_string()).unwrap_or_default(),
+                        path: v.install_path().to_string_lossy().to_string(),
                         status: if is_active {
                             "=> 当前".to_string()
                         } else {
@@ -81,14 +77,14 @@ pub async fn cmd_current(ctx: &AppContext, json: bool) -> Result<(), ZzmError> {
     if json {
         let result = serde_json::json!({
             "zig": zig_current.as_ref().map(|v| serde_json::json!({
-                "version": v.version,
-                "path": v.install_path.to_string_lossy(),
-                "channel": v.channel,
+                "version": v.version(),
+                "path": v.install_path().to_string_lossy(),
+                "channel": v.channel().map(|c| c.to_string()),
             })),
             "zls": zls_current.as_ref().map(|v| serde_json::json!({
-                "version": v.version,
-                "path": v.install_path.to_string_lossy(),
-                "zig_version": v.zig_version,
+                "version": v.version(),
+                "path": v.install_path().to_string_lossy(),
+                "zig_version": v.zig_version(),
             })),
         });
         json_output::print_json(&result)?;
@@ -96,8 +92,8 @@ pub async fn cmd_current(ctx: &AppContext, json: bool) -> Result<(), ZzmError> {
         match &zig_current {
             Some(v) => console_output::print_success(&format!(
                 "Zig {} ({})",
-                v.version,
-                v.install_path.to_string_lossy()
+                v.version(),
+                v.install_path().to_string_lossy()
             )),
             None => console_output::print_info("当前没有激活的 Zig 版本"),
         }
@@ -105,8 +101,8 @@ pub async fn cmd_current(ctx: &AppContext, json: bool) -> Result<(), ZzmError> {
         match &zls_current {
             Some(v) => console_output::print_success(&format!(
                 "ZLS {} ({})",
-                v.version,
-                v.install_path.to_string_lossy()
+                v.version(),
+                v.install_path().to_string_lossy()
             )),
             None => console_output::print_info("当前没有激活的 ZLS 版本"),
         }

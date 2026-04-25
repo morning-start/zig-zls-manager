@@ -24,10 +24,10 @@ pub async fn cmd_info(ctx: &AppContext, _verbose: bool) -> Result<(), ZzmError> 
 
     let zig_version = zig_current
         .as_ref()
-        .map_or_else(|| "未设置".to_string(), |v| v.version.clone());
+        .map_or_else(|| "未设置".to_string(), |v| v.version().to_string());
     let zls_version = zls_current
         .as_ref()
-        .map_or_else(|| "未设置".to_string(), |v| v.version.clone());
+        .map_or_else(|| "未设置".to_string(), |v| v.version().to_string());
     let install_dir = platform.default_install_dir().to_string_lossy().to_string();
     let bin_dir = platform.bin_dir().to_string_lossy().to_string();
     let in_path = if platform.is_bin_in_path() {

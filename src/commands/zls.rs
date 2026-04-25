@@ -1,13 +1,11 @@
 use crate::cli;
 use crate::commands::AppContext;
-use crate::infra::zls_api;
 use crate::output::console_output;
 use crate::output::json_output;
 use crate::output::table_output::{
     InstalledVersionRow, RemoteVersionRow, render_installed_table, render_remote_table,
 };
 use crate::utils::error::ZzmError;
-use crate::utils::format::format_size;
 
 /// ZLS 子命令处理
 pub async fn cmd_zls(
@@ -25,7 +23,7 @@ pub async fn cmd_zls(
             yes: _,
         } => {
             manager
-                .install(&version, zig_version.as_deref(), false)
+                .install(&version, false, zig_version.as_deref())
                 .await?;
         }
         cli::ZlsCommands::Uninstall { version } => {
@@ -44,15 +42,8 @@ pub async fn cmd_zls(
                         .iter()
                         .map(|v| RemoteVersionRow {
                             version: v.version.clone(),
-                            channel: match v.channel {
-                                zls_api::ZlsChannel::Stable => "stable".to_string(),
-                                zls_api::ZlsChannel::Prerelease => "prerelease".to_string(),
-                            },
-                            size: v
-                                .asset
-                                .as_ref()
-                                .map(|a| format_size(a.size))
-                                .unwrap_or_default(),
+                            channel: v.channel.to_string(),
+                            size: v.asset.as_ref().map(|a| a.size.clone()).unwrap_or_default(),
                             installed: String::new(),
                         })
                         .collect();
@@ -71,11 +62,11 @@ pub async fn cmd_zls(
                     let rows: Vec<InstalledVersionRow> = versions
                         .iter()
                         .map(|v| {
-                            let is_active = index.active_zls.as_ref() == Some(&v.version);
+                            let is_active = index.active_zls.as_ref() == Some(&v.version().to_string());
                             InstalledVersionRow {
-                                version: v.version.clone(),
-                                channel: v.zig_version.clone().unwrap_or_default(),
-                                path: v.install_path.to_string_lossy().to_string(),
+                                version: v.version().to_string(),
+                                channel: v.zig_version().unwrap_or_default().to_string(),
+                                path: v.install_path().to_string_lossy().to_string(),
                                 status: if is_active {
                                     "=> 当前".to_string()
                                 } else {
@@ -96,8 +87,8 @@ pub async fn cmd_zls(
             match &current {
                 Some(v) => console_output::print_success(&format!(
                     "ZLS {} ({})",
-                    v.version,
-                    v.install_path.to_string_lossy()
+                    v.version(),
+                    v.install_path().to_string_lossy()
                 )),
                 None => console_output::print_info("当前没有激活的 ZLS 版本"),
             }
