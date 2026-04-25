@@ -376,45 +376,60 @@ fn find_matching_zls_asset(assets: &[GithubAsset], target_triple: &str) -> Optio
 // ========== VersionProvider 实现 ==========
 
 impl crate::core::tool_manager::VersionProvider for ZlsApiClient {
-    async fn get_version_info(&self, version: &str) -> Result<crate::core::tool_manager::VersionInfo, ZzmError> {
+    async fn get_version_info(
+        &self,
+        version: &str,
+    ) -> Result<crate::core::tool_manager::VersionInfo, ZzmError> {
         let info = self.get_version_info(version).await?;
         Ok(crate::core::tool_manager::VersionInfo {
             version: info.version,
             channel: info.channel,
-            asset: info.asset.map(|a| crate::core::tool_manager::DownloadAsset {
-                url: a.browser_download_url,
-                filename: a.name,
-                shasum: String::new(), // ZLS 不提供 shasum
-                size: crate::utils::format::format_size(a.size),
-            }),
+            asset: info
+                .asset
+                .map(|a| crate::core::tool_manager::DownloadAsset {
+                    url: a.browser_download_url,
+                    filename: a.name,
+                    shasum: String::new(), // ZLS 不提供 shasum
+                    size: crate::utils::format::format_size(a.size),
+                }),
         })
     }
 
-    async fn list_remote_versions(&self) -> Result<Vec<crate::core::tool_manager::VersionInfo>, ZzmError> {
+    async fn list_remote_versions(
+        &self,
+    ) -> Result<Vec<crate::core::tool_manager::VersionInfo>, ZzmError> {
         let versions = self.list_remote_versions().await?;
-        Ok(versions.into_iter().map(|v| crate::core::tool_manager::VersionInfo {
-            version: v.version,
-            channel: v.channel,
-            asset: v.asset.map(|a| crate::core::tool_manager::DownloadAsset {
-                url: a.browser_download_url,
-                filename: a.name,
-                shasum: String::new(),
-                size: crate::utils::format::format_size(a.size),
-            }),
-        }).collect())
+        Ok(versions
+            .into_iter()
+            .map(|v| crate::core::tool_manager::VersionInfo {
+                version: v.version,
+                channel: v.channel,
+                asset: v.asset.map(|a| crate::core::tool_manager::DownloadAsset {
+                    url: a.browser_download_url,
+                    filename: a.name,
+                    shasum: String::new(),
+                    size: crate::utils::format::format_size(a.size),
+                }),
+            })
+            .collect())
     }
 
-    async fn find_compatible_version(&self, zig_version: &str) -> Result<crate::core::tool_manager::VersionInfo, ZzmError> {
+    async fn find_compatible_version(
+        &self,
+        zig_version: &str,
+    ) -> Result<crate::core::tool_manager::VersionInfo, ZzmError> {
         let info = self.find_compatible_version(zig_version).await?;
         Ok(crate::core::tool_manager::VersionInfo {
             version: info.version,
             channel: info.channel,
-            asset: info.asset.map(|a| crate::core::tool_manager::DownloadAsset {
-                url: a.browser_download_url,
-                filename: a.name,
-                shasum: String::new(),
-                size: crate::utils::format::format_size(a.size),
-            }),
+            asset: info
+                .asset
+                .map(|a| crate::core::tool_manager::DownloadAsset {
+                    url: a.browser_download_url,
+                    filename: a.name,
+                    shasum: String::new(),
+                    size: crate::utils::format::format_size(a.size),
+                }),
         })
     }
 }

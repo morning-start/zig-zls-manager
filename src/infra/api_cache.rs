@@ -2,8 +2,8 @@ use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use crate::utils::error::ZzmError;
 
@@ -120,11 +120,8 @@ mod tests {
     fn test_cache_creates_dir() {
         let temp_dir = tempfile::tempdir().unwrap();
         let nested = temp_dir.path().join("nested").join("dir");
-        let cache: ApiCache<TestData> = ApiCache::new(
-            nested,
-            "test.json",
-            Duration::from_secs(3600),
-        );
+        let cache: ApiCache<TestData> =
+            ApiCache::new(nested, "test.json", Duration::from_secs(3600));
 
         let data = TestData {
             value: "test".to_string(),

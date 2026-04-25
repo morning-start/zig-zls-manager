@@ -320,32 +320,42 @@ fn find_matching_asset(platforms: &ZigPlatforms, target_triple: &str) -> Option<
 // ========== VersionProvider 实现 ==========
 
 impl crate::core::tool_manager::VersionProvider for ZigApiClient {
-    async fn get_version_info(&self, version: &str) -> Result<crate::core::tool_manager::VersionInfo, ZzmError> {
+    async fn get_version_info(
+        &self,
+        version: &str,
+    ) -> Result<crate::core::tool_manager::VersionInfo, ZzmError> {
         let info = self.get_version_info(version).await?;
         Ok(crate::core::tool_manager::VersionInfo {
             version: info.version,
             channel: info.channel,
-            asset: info.asset.map(|a| crate::core::tool_manager::DownloadAsset {
-                url: a.url,
-                filename: a.filename,
-                shasum: a.shasum,
-                size: a.size,
-            }),
+            asset: info
+                .asset
+                .map(|a| crate::core::tool_manager::DownloadAsset {
+                    url: a.url,
+                    filename: a.filename,
+                    shasum: a.shasum,
+                    size: a.size,
+                }),
         })
     }
 
-    async fn list_remote_versions(&self) -> Result<Vec<crate::core::tool_manager::VersionInfo>, ZzmError> {
+    async fn list_remote_versions(
+        &self,
+    ) -> Result<Vec<crate::core::tool_manager::VersionInfo>, ZzmError> {
         let versions = self.list_remote_versions().await?;
-        Ok(versions.into_iter().map(|v| crate::core::tool_manager::VersionInfo {
-            version: v.version,
-            channel: v.channel,
-            asset: v.asset.map(|a| crate::core::tool_manager::DownloadAsset {
-                url: a.url,
-                filename: a.filename,
-                shasum: a.shasum,
-                size: a.size,
-            }),
-        }).collect())
+        Ok(versions
+            .into_iter()
+            .map(|v| crate::core::tool_manager::VersionInfo {
+                version: v.version,
+                channel: v.channel,
+                asset: v.asset.map(|a| crate::core::tool_manager::DownloadAsset {
+                    url: a.url,
+                    filename: a.filename,
+                    shasum: a.shasum,
+                    size: a.size,
+                }),
+            })
+            .collect())
     }
 }
 
