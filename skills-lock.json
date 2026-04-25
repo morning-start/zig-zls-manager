@@ -1,6 +1,16 @@
 {
   "version": 1,
   "skills": {
+    "git-skill": {
+      "source": "morning-start/dev-skills",
+      "sourceType": "github",
+      "computedHash": "2b273e82b6a420535ca0bafeb8a7c8481784eb6a25eeac7f2c84637a9e98e06a"
+    },
+    "hermes-agent-config": {
+      "source": "morning-start/book-skills",
+      "sourceType": "github",
+      "computedHash": "579834fe368ff8a5bf0f7ec508ed9dd0a09ee6b8da85fe5c1a195923a14fc176"
+    },
     "rust-skills": {
       "source": "morning-start/book-skills",
       "sourceType": "github",
