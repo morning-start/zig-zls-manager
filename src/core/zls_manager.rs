@@ -158,6 +158,7 @@ impl ZlsManager {
 
         if index.active_zls.as_ref() == Some(&resolved) {
             self.path_manager.remove_zls_symlink()?;
+            let _ = self.path_manager.remove_default_zls_symlink(); // 清理 default-zls 符号链接
             index.active_zls = None;
         }
 
@@ -206,11 +207,24 @@ impl ZlsManager {
 
         self.path_manager.create_zls_symlink(&resolved)?;
 
+        // 更新 default-zls 目录符号链接（java-mocha 风格）
+        // ~/.zzm/default-zls -> ~/.zzm/versions/zls/0.13.0
+        if let Err(e) = self.path_manager.create_default_zls_symlink(&resolved) {
+            console_output::print_warning(&format!(
+                "创建 default-zls 目录符号链接失败: {}，不影响使用，但 ZLS_HOME 模式不可用",
+                e
+            ));
+        }
+
         let mut index = self.path_manager.read_installed_index()?;
         index.active_zls = Some(resolved.clone());
         self.path_manager.write_installed_index(&index)?;
 
         console_output::print_success(&format!("已切换到 ZLS {}", resolved));
+        console_output::print_info(&format!(
+            "提示: 设置 ZLS_HOME={} 即可通过 ZLS_HOME 使用当前版本",
+            self.path_manager.install_dir().join("default-zls").display()
+        ));
         Ok(resolved)
     }
 

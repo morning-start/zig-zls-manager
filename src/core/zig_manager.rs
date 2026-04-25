@@ -168,6 +168,7 @@ impl ZigManager {
         // 如果是当前激活版本，先移除符号链接
         if index.active_zig.as_ref() == Some(&resolved) {
             self.path_manager.remove_zig_symlink()?;
+            let _ = self.path_manager.remove_default_symlink(); // 清理 default 符号链接
             index.active_zig = None;
         }
 
@@ -218,8 +219,17 @@ impl ZigManager {
             });
         }
 
-        // 更新符号链接
+        // 更新 bin 目录符号链接（向后兼容）
         self.path_manager.create_zig_symlink(&resolved)?;
+
+        // 更新 default 目录符号链接（java-mocha 风格）
+        // ~/.zzm/default -> ~/.zzm/versions/zig/0.13.0
+        if let Err(e) = self.path_manager.create_default_zig_symlink(&resolved) {
+            console_output::print_warning(&format!(
+                "创建 default 目录符号链接失败: {}，不影响使用，但 ZIG_HOME 模式不可用",
+                e
+            ));
+        }
 
         // 更新索引中的 active_zig
         let mut index = self.path_manager.read_installed_index()?;
@@ -227,6 +237,10 @@ impl ZigManager {
         self.path_manager.write_installed_index(&index)?;
 
         console_output::print_success(&format!("已切换到 Zig {}", resolved));
+        console_output::print_info(&format!(
+            "提示: 设置 ZIG_HOME={} 即可通过 ZIG_HOME 使用当前版本",
+            self.path_manager.default_dir().display()
+        ));
         Ok(resolved)
     }
 
