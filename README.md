@@ -95,6 +95,25 @@ zzm clean --all
 zzm clean --dry-run
 ```
 
+### 环境变量
+
+| 变量 | 说明 |
+|------|------|
+| `ZZM_ROOT` | 安装根目录（覆盖默认路径和配置文件） |
+| `ZIG_HOME` | 设置为 `<ZZM_ROOT>/default` 即可使用当前 Zig 版本 |
+| `ZLS_HOME` | 设置为 `<ZZM_ROOT>/default-zls` 即可使用当前 ZLS 版本 |
+
+```bash
+# 示例：自定义安装目录
+export ZZM_ROOT=/opt/zzm
+zzm install 0.13.0
+
+# 示例：ZIG_HOME 模式（IDE/构建脚本推荐）
+export ZIG_HOME=~/.zzm/default
+# 切换版本后无需更新 ZIG_HOME
+zzm use 0.14.0  # ZIG_HOME 自动指向新版本
+```
+
 ---
 
 ## 所有命令
