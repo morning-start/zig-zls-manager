@@ -225,6 +225,7 @@ impl ZlsManager {
             "提示: 设置 ZLS_HOME={} 即可通过 ZLS_HOME 使用当前版本",
             self.path_manager.install_dir().join("default-zls").display()
         ));
+        console_output::print_info("  或确保 bin 目录在 PATH 中（zzm info 查看详情）");
         Ok(resolved)
     }
 

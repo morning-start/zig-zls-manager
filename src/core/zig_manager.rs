@@ -241,6 +241,7 @@ impl ZigManager {
             "提示: 设置 ZIG_HOME={} 即可通过 ZIG_HOME 使用当前版本",
             self.path_manager.default_dir().display()
         ));
+        console_output::print_info("  或确保 bin 目录在 PATH 中（zzm info 查看详情）");
         Ok(resolved)
     }
 
