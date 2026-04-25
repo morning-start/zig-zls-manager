@@ -1270,12 +1270,23 @@ zzm install $(cat /tmp/zvm-version.txt)
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
-| `ZZM_HOME` | zzm 安装目录 | `~/.zzm` |
-| `ZZM_CACHE_DIR` | 缓存目录 | `~/.zzm/cache` |
-| `ZZM_CONFIG_FILE` | 配置文件路径 | `~/.zzm/config.toml` |
+| `ZZM_ROOT` | zzm 安装根目录（覆盖平台默认路径和配置文件） | 平台默认路径（Linux: `~/.zzm`，macOS: `~/.zzm`，Windows: `%LOCALAPPDATA%\zzm`） |
+| `ZIG_HOME` | 指向当前 Zig 版本目录（设置 `ZIG_HOME=~/.zzm/default` 即可） | 无 |
+| `ZLS_HOME` | 指向当前 ZLS 版本目录（设置 `ZLS_HOME=~/.zzm/default-zls` 即可） | 无 |
+| `ZZM_CACHE_DIR` | 缓存目录 | `<ZZM_ROOT>/cache` |
+| `ZZM_CONFIG_FILE` | 配置文件路径 | `<ZZM_ROOT>/config.toml` |
 | `ZZM_DOWNLOAD_MIRROR` | 下载镜像源 | 官方源 |
 | `ZZM_NO_COLOR` | 禁用彩色输出 | `false` |
 | `ZZM_VERBOSE` | 详细输出 | `false` |
+
+> **ZZM_ROOT 优先级**: `ZZM_ROOT` 环境变量 > 配置文件 `install_dir` > 平台默认路径。
+> 设置 `ZZM_ROOT` 可将所有 zzm 数据（版本、缓存、配置）统一存放到指定目录。
+
+> **ZIG_HOME / ZLS_HOME 模式**: zzm 在版本切换时会自动创建 `default` 和 `default-zls` 目录符号链接：
+> - `~/.zzm/default` -> `~/.zzm/versions/zig/0.13.0`（当前 Zig 版本目录）
+> - `~/.zzm/default-zls` -> `~/.zzm/versions/zls/0.13.0`（当前 ZLS 版本目录）
+>
+> 在 IDE 和构建脚本中设置 `ZIG_HOME=~/.zzm/default` 即可自动使用 zzm 管理的当前版本，无需手动更新路径。
 
 ### 7.3 相关资源
 

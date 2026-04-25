@@ -805,7 +805,11 @@ impl FileSystemManager {
 
 ```
 ~/.zzm/
-├── bin/                          # 当前活动的符号链接/shim
+├── default/                      # 当前 Zig 版本目录符号链接
+│   -> versions/zig/0.13.0/       # ZIG_HOME 模式
+├── default-zls/                  # 当前 ZLS 版本目录符号链接
+│   -> versions/zls/0.13.0/       # ZLS_HOME 模式
+├── bin/                          # 当前活动的符号链接/shim（向后兼容）
 │   ├── zig -> ../versions/zig/<version>/zig
 │   └── zls -> ../versions/zls/<version>/zls
 ├── versions/
@@ -825,9 +829,21 @@ impl FileSystemManager {
 │   ├── zig-0.13.0.tar.gz
 │   └── zls-0.13.0.zip
 ├── config.toml                   # 全局配置
+├── installed.json                # 已安装版本索引
 ├── compatibility.json            # 兼容性矩阵（可更新）
 └── logs/                         # 日志文件
 ```
+
+**环境变量优先级**：
+
+安装根目录解析优先级：
+1. `ZZM_ROOT` 环境变量（最高优先级，覆盖所有默认值）
+2. 配置文件 `config.toml` 中的 `install_dir` 字段
+3. 平台默认路径（Linux: `~/.zzm` / `$XDG_DATA_HOME/zzm`，macOS: `~/.zzm`，Windows: `%LOCALAPPDATA%\zzm`）
+
+版本切换时的两种模式：
+- **PATH 模式**（传统）：`bin/zig -> versions/zig/<version>/zig`，需要将 `bin/` 加入 PATH
+- **ZIG_HOME 模式**（java-mocha 风格）：`default -> versions/zig/<version>`，设置 `ZIG_HOME=~/.zzm/default` 即可
 
 **路径管理逻辑**：
 
