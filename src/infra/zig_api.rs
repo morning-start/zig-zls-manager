@@ -399,10 +399,10 @@ mod tests {
 
     #[test]
     fn test_parse_size_to_bytes() {
-        assert_eq!(parse_size_to_bytes("53MiB"), 55574528);
-        assert_eq!(parse_size_to_bytes("21MiB"), 22020096);
-        assert_eq!(parse_size_to_bytes("1GiB"), 1073741824);
-        assert_eq!(parse_size_to_bytes("100KiB"), 102400);
+        assert_eq!(parse_size_to_bytes("53MiB"), 55_574_528);
+        assert_eq!(parse_size_to_bytes("21MiB"), 22_020_096);
+        assert_eq!(parse_size_to_bytes("1GiB"), 1_073_741_824);
+        assert_eq!(parse_size_to_bytes("100KiB"), 102_400);
         assert_eq!(parse_size_to_bytes("512B"), 512);
     }
 
@@ -473,7 +473,7 @@ mod tests {
         assert_eq!(parse_size_to_bytes("1KB"), 1024);
         assert_eq!(parse_size_to_bytes("1MB"), 1024 * 1024);
         assert_eq!(parse_size_to_bytes("2GiB"), 2 * 1024 * 1024 * 1024);
-        assert_eq!(parse_size_to_bytes("1.5MiB"), 1572864);
+        assert_eq!(parse_size_to_bytes("1.5MiB"), 1_572_864);
     }
 
     #[test]
