@@ -279,6 +279,7 @@ impl ConfigManager {
     }
 
     /// 重置配置为默认值
+    #[allow(dead_code)] // 预留: zzm config reset 命令
     pub fn reset(&self) -> Result<(), ZzmError> {
         let config = ZzmConfig::default();
         self.save(&config)

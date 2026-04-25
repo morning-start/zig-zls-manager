@@ -200,6 +200,7 @@ impl IdeManager {
     }
 
     /// 移除 VS Code 中的 Zig/ZLS 配置
+    #[allow(dead_code)] // 预留: zzm ide clean 命令
     pub fn remove_vscode_config(&self) -> Result<(), ZzmError> {
         let settings_path = self.vscode_settings_path()?;
 

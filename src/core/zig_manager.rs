@@ -14,6 +14,7 @@ use crate::utils::version::resolve_version;
 ///
 /// 提供 Zig 版本的安装、卸载、切换和查询功能
 pub struct ZigManager {
+    #[allow(dead_code)] // 预留: 平台特定操作扩展
     platform: Box<dyn PlatformTrait>,
     path_manager: PathManager,
     api_client: ZigApiClient,
@@ -368,8 +369,9 @@ mod tests {
         let resolved = resolve_version(".13").unwrap();
         assert_eq!(resolved, "0.13.0");
 
-        let resolved = resolve_version("0.").unwrap();
-        assert_eq!(resolved, "0.0.0");
+        // "0." 不是有效版本号，应返回错误
+        let result = resolve_version("0.");
+        assert!(result.is_err(), "\"0.\" 应该是无效版本号");
 
         // 测试无效版本
         let result = resolve_version("invalid");

@@ -89,6 +89,7 @@ impl CompatibilityChecker {
     }
 
     /// 检查兼容性并输出警告（不阻止操作）
+    #[allow(dead_code)] // 预留: 在 use/switch 命令中调用
     pub fn check_and_warn(zig_version: &str, zls_version: &str) {
         match Self::check(zig_version, zls_version) {
             CompatibilityStatus::Compatible => {}
