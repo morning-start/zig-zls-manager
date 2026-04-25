@@ -3006,7 +3006,7 @@ dependencies = [
 
 [[package]]
 name = "zzm"
-version = "0.1.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
