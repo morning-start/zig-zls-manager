@@ -70,7 +70,7 @@ impl PathManager {
     /// 获取 default 目录（指向当前激活版本目录的符号链接）
     ///
     /// 例如: ~/.zzm/default -> ~/.zzm/versions/zig/0.13.0
-    /// 用法: 设置 ZIG_HOME=~/.zzm/default
+    /// 用法: 设置 `ZIG_HOME`=~/.zzm/default
     pub fn default_dir(&self) -> PathBuf {
         self.platform.default_dir()
     }

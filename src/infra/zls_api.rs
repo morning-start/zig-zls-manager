@@ -79,7 +79,7 @@ pub struct GithubAsset {
 /// ZLS 版本信息（供内部使用）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZlsVersionInfo {
-    /// 版本号字符串（来自 tag_name）
+    /// 版本号字符串（来自 `tag_name`）
     pub version: String,
     /// 版本通道
     pub channel: ZlsChannel,
@@ -119,7 +119,7 @@ impl ZlsApiClient {
         {
             headers.insert(
                 AUTHORIZATION,
-                HeaderValue::from_str(&format!("Bearer {}", token))
+                HeaderValue::from_str(&format!("Bearer {token}"))
                     .unwrap_or_else(|_| HeaderValue::from_static("")),
             );
             tracing::debug!("已配置 GitHub Token 认证");
@@ -223,7 +223,7 @@ impl ZlsApiClient {
         Err(last_error.unwrap())
     }
 
-    /// 获取单页 releases（per_page=100）
+    /// 获取单页 `releases（per_page=100`）
     async fn fetch_single_page(&self) -> Result<Vec<GithubRelease>, ZzmError> {
         let response = self
             .client
@@ -387,7 +387,7 @@ impl ZlsApiClient {
         }
 
         Err(ZzmError::VersionNotFound {
-            version: format!("zls compatible with zig {}", zig_version),
+            version: format!("zls compatible with zig {zig_version}"),
         })
     }
 }

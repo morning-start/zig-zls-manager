@@ -372,7 +372,11 @@ fn parse_target_triple(triple: &str) -> Option<(&str, &str)> {
 /// 解析人类可读的文件大小字符串为字节数
 ///
 /// 例如: "53MiB" -> 55574528
-#[allow(dead_code)] // 预留: 下载大小显示
+#[allow(
+    dead_code,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation
+)]
 pub fn parse_size_to_bytes(size_str: &str) -> u64 {
     let size_str = size_str.trim();
     let num_part: String = size_str
@@ -463,7 +467,7 @@ mod tests {
         };
 
         let platforms = ZigPlatforms {
-            windows: vec![asset.clone()],
+            windows: vec![asset],
             macos: vec![],
             linux: vec![],
         };

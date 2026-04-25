@@ -86,11 +86,11 @@ fn unpack_tar_archive<R: std::io::Read>(
 ) -> Result<(), ZzmError> {
     for entry_result in archive.entries().map_err(|e| ZzmError::ExtractionFailed {
         path: dest_dir.to_string_lossy().to_string(),
-        reason: format!("无法读取归档条目: {}", e),
+        reason: format!("无法读取归档条目: {e}"),
     })? {
         let mut entry = entry_result.map_err(|e| ZzmError::ExtractionFailed {
             path: dest_dir.to_string_lossy().to_string(),
-            reason: format!("归档条目读取错误: {}", e),
+            reason: format!("归档条目读取错误: {e}"),
         })?;
 
         let entry_path_owned =
@@ -99,7 +99,7 @@ fn unpack_tar_archive<R: std::io::Read>(
                 .map(|p| p.to_path_buf())
                 .map_err(|e| ZzmError::ExtractionFailed {
                     path: dest_dir.to_string_lossy().to_string(),
-                    reason: format!("无效的条目路径: {}", e),
+                    reason: format!("无效的条目路径: {e}"),
                 })?;
 
         // 安全检查：防止路径遍历攻击
@@ -116,7 +116,7 @@ fn unpack_tar_archive<R: std::io::Read>(
             .unpack_in(dest_dir)
             .map_err(|e| ZzmError::ExtractionFailed {
                 path: path_for_error,
-                reason: format!("解压失败: {}", e),
+                reason: format!("解压失败: {e}"),
             })?;
     }
 
@@ -134,7 +134,7 @@ fn extract_zip(archive_path: &Path, dest_dir: &Path) -> Result<(), ZzmError> {
     let file = fs::File::open(archive_path).map_err(ZzmError::Io)?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| ZzmError::ExtractionFailed {
         path: archive_path.to_string_lossy().to_string(),
-        reason: format!("无法打开 zip 文件: {}", e),
+        reason: format!("无法打开 zip 文件: {e}"),
     })?;
 
     for i in 0..archive.len() {
@@ -142,7 +142,7 @@ fn extract_zip(archive_path: &Path, dest_dir: &Path) -> Result<(), ZzmError> {
             .by_index(i)
             .map_err(|e| ZzmError::ExtractionFailed {
                 path: archive_path.to_string_lossy().to_string(),
-                reason: format!("读取 zip 条目失败: {}", e),
+                reason: format!("读取 zip 条目失败: {e}"),
             })?;
 
         let outpath = match file.enclosed_name() {
