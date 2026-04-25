@@ -62,6 +62,7 @@ impl PathManager {
     }
 
     /// 获取安装根目录
+    #[allow(dead_code)] // 预留: info/status 命令
     pub fn install_dir(&self) -> PathBuf {
         self.platform.default_install_dir()
     }
@@ -82,6 +83,7 @@ impl PathManager {
     }
 
     /// 获取缓存目录
+    #[allow(dead_code)] // 预留: 缓存清理命令
     pub fn cache_dir(&self) -> PathBuf {
         self.platform.cache_dir()
     }
@@ -194,6 +196,7 @@ impl PathManager {
     }
 
     /// 读取当前激活的 zig 符号链接目标，返回版本号
+    #[allow(dead_code)] // 预留: info/status 命令增强
     pub fn read_current_zig_version(&self) -> Option<String> {
         let link = self.zig_symlink_path();
         if !link.exists() {

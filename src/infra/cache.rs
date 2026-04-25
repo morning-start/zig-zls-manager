@@ -17,6 +17,7 @@ impl CacheManager {
     }
 
     /// 获取缓存目录路径
+    #[allow(dead_code)] // 预留: 缓存目录查询
     pub fn cache_dir(&self) -> &Path {
         &self.cache_dir
     }

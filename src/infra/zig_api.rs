@@ -304,6 +304,7 @@ impl ZigApiClient {
     }
 
     /// 获取最新稳定版本
+    #[allow(dead_code)] // 预留: zzm install latest 命令
     pub async fn get_latest_stable(&self) -> Result<ZigVersionInfo, ZzmError> {
         let versions = self.list_remote_versions().await?;
         versions
@@ -315,6 +316,7 @@ impl ZigApiClient {
     }
 
     /// 获取 master (nightly) 版本
+    #[allow(dead_code)] // 预留: zzm install master 命令
     pub async fn get_master(&self) -> Result<ZigVersionInfo, ZzmError> {
         let versions = self.list_remote_versions().await?;
         versions
@@ -368,6 +370,7 @@ fn parse_target_triple(triple: &str) -> Option<(&str, &str)> {
 /// 解析人类可读的文件大小字符串为字节数
 ///
 /// 例如: "53MiB" -> 55574528
+#[allow(dead_code)] // 预留: 下载大小显示
 pub fn parse_size_to_bytes(size_str: &str) -> u64 {
     let size_str = size_str.trim();
     let num_part: String = size_str.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();

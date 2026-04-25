@@ -336,6 +336,7 @@ impl ZlsApiClient {
     }
 
     /// 获取最新稳定版本
+    #[allow(dead_code)] // 预留: zzm zls install latest 命令
     pub async fn get_latest_stable(&self) -> Result<ZlsVersionInfo, ZzmError> {
         let versions = self.list_remote_versions().await?;
         versions

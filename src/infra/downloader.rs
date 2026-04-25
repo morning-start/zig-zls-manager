@@ -40,6 +40,7 @@ impl Downloader {
     }
 
     /// 设置最大重试次数
+    #[allow(dead_code)] // 预留: 配置化重试策略
     pub fn with_max_retries(mut self, retries: u32) -> Self {
         self.max_retries = retries;
         self
