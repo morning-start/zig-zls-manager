@@ -2,11 +2,11 @@
 
 ## 📋 文档信息
 
-- **版本**: v3.1.0
+- **版本**: v3.2.0
 - **更新日期**: 2026-04-25
 - **当前阶段**: Phase 1 MVP + 架构优化重构完成
 - **编译状态**: ✅ cargo clippy -D warnings 零警告
-- **测试状态**: ✅ 181/181 全部通过
+- **测试状态**: ✅ 187/187 全部通过
 
 ---
 
@@ -70,6 +70,20 @@
 - **测试数**: 157 → 181 (+24)
 - **涉及文件**: `src/core/tool_manager.rs`
 
+### T-052: 修复 Zig API serde 模型不匹配 ✅
+
+- **问题**: `zzm list --remote` 报错 "error decoding response body"，Zig API 实际 JSON 结构与代码 serde 模型严重不匹配
+- **根因**: 代码假设 API 返回 `ZigPlatforms { windows, macos, linux }` + `ZigPlatformAsset { os, arch, filename, url, signature }`，但实际 API 返回扁平的平台键（如 `x86_64-macos`）+ `{ tarball, shasum, size }` 结构
+- **修复**:
+  - `ZigVersionEntry`: 新增 `version`/`stdDocs`/`notes`/`src`/`bootstrap` 字段，`docs` 从 `BTreeMap` 改为 `String`，平台键改用 `#[serde(flatten)] BTreeMap`
+  - `ZigPlatformAsset`: 简化为 `{ tarball, shasum, size }`，移除 `os`/`arch`/`filename`/`url`/`signature`
+  - 删除 `ZigPlatforms`/`ZigReleaseAsset`/`ZigSignature` 三个无用结构体
+  - `find_matching_asset`: 改为从 BTreeMap 键名匹配（支持新版 `arch-os` 和旧版 `os-arch` 格式）
+  - 新增 `is_platform_key()` 过滤非平台键，`extract_filename_from_url()` 从 URL 提取文件名
+  - `parse_size_to_bytes()`: 优先解析纯数字格式（API 实际返回），回退人类可读格式
+- **测试数**: 181 → 187 (+6)
+- **涉及文件**: `src/infra/zig_api.rs`
+
 ### T-051: Core 层输出解耦
 
 - **问题**: ToolManager 直接调用 `console_output::print_*`，混合了业务逻辑和展示逻辑
@@ -121,6 +135,7 @@
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
+| 2026-04-25 | v3.2.0 | 修复 T-052 Zig API serde 模型不匹配（`zzm list --remote` 解码错误），重写 ZigVersionEntry/ZigPlatformAsset 适配实际 API 结构(+6测试) |
 | 2026-04-25 | v3.1.0 | 完成 T-050 ToolManager 单元测试(+24)、T-043 数字字面量可读性优化 | 完成 T-044~T-049 架构优化重构：ToolManager 泛型抽象、统一 Channel/目标三元组/版本解析、ApiCache 泛型缓存、流式校验 |
 | 2026-04-25 | v2.1.0 | 完成 T-034~T-041 全部优化项，移除冗余 async/clone，修复 clippy 警告，重构 cmd_doctor |
 | 2026-04-25 | v2.0.0 | 基于 clippy pedantic/nursery 检测重构，仅保留未完成项，新增 T-034~T-043 |
