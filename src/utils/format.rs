@@ -8,19 +8,23 @@
 /// assert_eq!(format_size(1024 * 1024), "1.0 MB");
 /// assert_eq!(format_size(1024 * 1024 * 1024), "1.0 GB");
 /// ```
+#[allow(clippy::cast_precision_loss)]
 pub fn format_size(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = 1024 * KB;
     const GB: u64 = 1024 * MB;
 
     if bytes >= GB {
-        format!("{:.1} GB", bytes as f64 / GB as f64)
+        let size = bytes as f64 / GB as f64;
+        format!("{size:.1} GB")
     } else if bytes >= MB {
-        format!("{:.1} MB", bytes as f64 / MB as f64)
+        let size = bytes as f64 / MB as f64;
+        format!("{size:.1} MB")
     } else if bytes >= KB {
-        format!("{:.1} KB", bytes as f64 / KB as f64)
+        let size = bytes as f64 / KB as f64;
+        format!("{size:.1} KB")
     } else {
-        format!("{} B", bytes)
+        format!("{bytes} B")
     }
 }
 

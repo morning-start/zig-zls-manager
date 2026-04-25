@@ -14,7 +14,7 @@ pub struct Version {
 
 impl Version {
     #[allow(dead_code)] // 预留: 版本构造 API
-    pub fn new(major: u64, minor: u64, patch: u64) -> Self {
+    pub const fn new(major: u64, minor: u64, patch: u64) -> Self {
         Self {
             major,
             minor,
@@ -39,7 +39,7 @@ impl std::fmt::Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}.{}.{}", self.major, self.minor, self.patch)?;
         if let Some(ref pre) = self.pre_release {
-            write!(f, "-{}", pre)?;
+            write!(f, "-{pre}")?;
         }
         Ok(())
     }
@@ -121,12 +121,12 @@ pub fn resolve_version(input: &str) -> std::result::Result<String, ZzmError> {
         _ => {
             if let Ok(version) = Version::from_str(input) {
                 if version.patch == 0 && !input.contains(".0") {
-                    Ok(format!("{}.0", input))
+                    Ok(format!("{input}.0"))
                 } else {
                     Ok(input.to_string())
                 }
             } else if input.starts_with('.') {
-                let ver = format!("0{}", input);
+                let ver = format!("0{input}");
                 resolve_version(&ver)
             } else {
                 Err(ZzmError::InvalidVersion {
@@ -304,9 +304,9 @@ mod tests {
         let v3 = Version::new(0, 13, 1);
 
         let mut set = HashSet::new();
-        set.insert(v1.clone());
-        set.insert(v2.clone());
-        set.insert(v3.clone());
+        set.insert(v1);
+        set.insert(v2);
+        set.insert(v3);
         assert_eq!(set.len(), 2);
     }
 }
