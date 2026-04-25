@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::utils::error::ZzmError;
 
 /// 平台抽象 trait，封装平台特定操作
+#[allow(dead_code)] // trait 部分方法预留: shell_config_files, is_admin
 pub trait PlatformTrait: Send + Sync {
     /// 克隆为 Box<dyn PlatformTrait>
     fn clone_box(&self) -> Box<dyn PlatformTrait>;
