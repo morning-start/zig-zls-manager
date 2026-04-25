@@ -239,6 +239,49 @@ pub fn remove_dir_all(path: &Path) -> Result<(), ZzmError> {
     Ok(())
 }
 
+/// 重新组织解压后的文件
+///
+/// 压缩包通常包含一个顶层目录（如 `zig-x86_64-windows-0.13.0/`），
+/// 需要将子目录的内容移动到版本目录的根部。
+///
+/// - 如果 `extracted_root` 和 `version_dir` 相同，无需操作
+/// - 如果 `extracted_root` 是 `version_dir` 的子目录，将内容上移
+pub fn reorganize_extracted_files(
+    extracted_root: &Path,
+    version_dir: &Path,
+    temp_suffix: &str,
+) -> Result<(), ZzmError> {
+    // 如果 extracted_root 和 version_dir 相同，说明文件已经在正确位置
+    if extracted_root == version_dir {
+        return Ok(());
+    }
+
+    // extracted_root 是 version_dir 的子目录（如 version_dir/zig-platform-version/）
+    // 需要将子目录的内容移动到 version_dir 中
+    if extracted_root.starts_with(version_dir) && extracted_root.is_dir() {
+        // 在临时目录中操作
+        let temp_dir = version_dir.with_extension(temp_suffix);
+        if temp_dir.exists() {
+            fs::remove_dir_all(&temp_dir).map_err(ZzmError::Io)?;
+        }
+
+        // 将 extracted_root 重命名为 temp_dir
+        fs::rename(extracted_root, &temp_dir).map_err(ZzmError::Io)?;
+
+        // 将 temp_dir 中的内容移动到 version_dir
+        for entry in fs::read_dir(&temp_dir).map_err(ZzmError::Io)? {
+            let entry = entry.map_err(ZzmError::Io)?;
+            let dest = version_dir.join(entry.file_name());
+            fs::rename(entry.path(), dest).map_err(ZzmError::Io)?;
+        }
+
+        // 清理临时目录
+        let _ = fs::remove_dir(&temp_dir);
+    }
+
+    Ok(())
+}
+
 // ========== 单元测试 ==========
 
 #[cfg(test)]
