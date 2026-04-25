@@ -1,6 +1,6 @@
 [package]
 name = "zzm"
-version = "1.1.0"
+version = "1.2.1"
 edition = "2024"
 authors = ["zig-zls-manager team"]
 description = "Zig/ZLS Version Manager - 专业级的 Zig + ZLS 联合版本管理 CLI 工具"
