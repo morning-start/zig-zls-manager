@@ -20,7 +20,7 @@ pub struct ZlsManager {
 }
 
 impl ZlsManager {
-    /// 创建新的 ZlsManager
+    /// 创建新的 `ZlsManager`
     pub fn new(platform: Box<dyn PlatformTrait>) -> Result<Self, ZzmError> {
         let path_manager = PathManager::new(platform.clone_box());
         let cache_dir = path_manager.cache_dir();
@@ -50,7 +50,7 @@ impl ZlsManager {
         self.initialize()?;
 
         let resolved = resolve_version(version)?;
-        console_output::print_step(1, 5, &format!("解析 ZLS 版本: {} → {}", version, resolved));
+        console_output::print_step(1, 5, &format!("解析 ZLS 版本: {version} → {resolved}"));
 
         // 获取版本信息
         let version_info = self.api_client.get_version_info(&resolved).await?;
@@ -59,7 +59,7 @@ impl ZlsManager {
             .asset
             .as_ref()
             .ok_or_else(|| ZzmError::VersionNotFound {
-                version: format!("ZLS {} (当前平台无匹配的二进制)", resolved),
+                version: format!("ZLS {resolved} (当前平台无匹配的二进制)"),
             })?;
 
         // 检查是否已安装
@@ -71,12 +71,12 @@ impl ZlsManager {
         }
 
         if already_installed && force {
-            console_output::print_info(&format!("强制重装 ZLS 版本: {}", resolved));
-            let _ = self.uninstall(&resolved).await;
+            console_output::print_info(&format!("强制重装 ZLS 版本: {resolved}"));
+            let _ = self.uninstall(&resolved);
         }
 
         // 下载
-        console_output::print_step(2, 5, &format!("下载 ZLS {}", resolved));
+        console_output::print_step(2, 5, &format!("下载 ZLS {resolved}"));
         let cache_dir = self.path_manager.cache_dir();
         let archive_path = self
             .downloader
@@ -121,7 +121,7 @@ impl ZlsManager {
         index.zls_versions.push(installed.clone());
         self.path_manager.write_installed_index(&index)?;
 
-        console_output::print_success(&format!("ZLS {} 安装完成", resolved));
+        console_output::print_success(&format!("ZLS {resolved} 安装完成"));
         Ok(installed)
     }
 
@@ -143,7 +143,7 @@ impl ZlsManager {
     }
 
     /// 卸载指定版本
-    pub async fn uninstall(&self, version: &str) -> Result<(), ZzmError> {
+    pub fn uninstall(&self, version: &str) -> Result<(), ZzmError> {
         let resolved = resolve_version(version)?;
 
         let mut index = self.path_manager.read_installed_index()?;
@@ -170,7 +170,7 @@ impl ZlsManager {
         index.zls_versions.remove(pos);
         self.path_manager.write_installed_index(&index)?;
 
-        console_output::print_success(&format!("ZLS {} 已卸载", resolved));
+        console_output::print_success(&format!("ZLS {resolved} 已卸载"));
         Ok(())
     }
 
@@ -201,7 +201,7 @@ impl ZlsManager {
         let zls_binary = self.path_manager.zls_binary_path(&resolved);
         if !zls_binary.exists() {
             return Err(ZzmError::NotInstalled {
-                version: format!("ZLS {} (二进制文件缺失)", resolved),
+                version: format!("ZLS {resolved} (二进制文件缺失)"),
             });
         }
 
@@ -211,8 +211,7 @@ impl ZlsManager {
         // ~/.zzm/default-zls -> ~/.zzm/versions/zls/0.13.0
         if let Err(e) = self.path_manager.create_default_zls_symlink(&resolved) {
             console_output::print_warning(&format!(
-                "创建 default-zls 目录符号链接失败: {}，不影响使用，但 ZLS_HOME 模式不可用",
-                e
+                "创建 default-zls 目录符号链接失败: {e}，不影响使用，但 ZLS_HOME 模式不可用"
             ));
         }
 
@@ -220,7 +219,7 @@ impl ZlsManager {
         index.active_zls = Some(resolved.clone());
         self.path_manager.write_installed_index(&index)?;
 
-        console_output::print_success(&format!("已切换到 ZLS {}", resolved));
+        console_output::print_success(&format!("已切换到 ZLS {resolved}"));
         console_output::print_info(&format!(
             "提示: 设置 ZLS_HOME={} 即可通过 ZLS_HOME 使用当前版本",
             self.path_manager

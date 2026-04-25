@@ -22,11 +22,11 @@ pub struct ZigManager {
 }
 
 impl ZigManager {
-    /// 创建新的 ZigManager
+    /// 创建新的 `ZigManager`
     pub fn new(platform: Box<dyn PlatformTrait>) -> Result<Self, ZzmError> {
         let path_manager = PathManager::new(platform.clone_box());
         let cache_dir = path_manager.cache_dir();
-        let api_client = ZigApiClient::new(cache_dir.clone())?;
+        let api_client = ZigApiClient::new(cache_dir)?;
         let downloader = Downloader::new()?;
 
         Ok(Self {
@@ -54,7 +54,7 @@ impl ZigManager {
 
         // 解析版本号
         let resolved = resolve_version(version)?;
-        console_output::print_step(1, 5, &format!("解析版本: {} → {}", version, resolved));
+        console_output::print_step(1, 5, &format!("解析版本: {version} → {resolved}"));
 
         // 获取版本信息
         let version_info = self.api_client.get_version_info(&resolved).await?;
@@ -63,7 +63,7 @@ impl ZigManager {
             .asset
             .as_ref()
             .ok_or_else(|| ZzmError::VersionNotFound {
-                version: format!("{} (当前平台无匹配的二进制)", resolved),
+                version: format!("{resolved} (当前平台无匹配的二进制)"),
             })?;
 
         // 检查是否已安装
@@ -76,12 +76,12 @@ impl ZigManager {
 
         // 如果强制安装，先卸载旧版本
         if already_installed && force {
-            console_output::print_info(&format!("强制重装版本: {}", resolved));
-            let _ = self.uninstall(&resolved).await;
+            console_output::print_info(&format!("强制重装版本: {resolved}"));
+            let _ = self.uninstall(&resolved);
         }
 
         // 下载
-        console_output::print_step(2, 5, &format!("下载 Zig {}", resolved));
+        console_output::print_step(2, 5, &format!("下载 Zig {resolved}"));
         let cache_dir = self.path_manager.cache_dir();
         let archive_path = self
             .downloader
@@ -146,12 +146,12 @@ impl ZigManager {
         index.zig_versions.push(installed.clone());
         self.path_manager.write_installed_index(&index)?;
 
-        console_output::print_success(&format!("Zig {} 安装完成", resolved));
+        console_output::print_success(&format!("Zig {resolved} 安装完成"));
         Ok(installed)
     }
 
     /// 卸载指定版本
-    pub async fn uninstall(&self, version: &str) -> Result<(), ZzmError> {
+    pub fn uninstall(&self, version: &str) -> Result<(), ZzmError> {
         let resolved = resolve_version(version)?;
 
         let mut index = self.path_manager.read_installed_index()?;
@@ -182,7 +182,7 @@ impl ZigManager {
         index.zig_versions.remove(pos);
         self.path_manager.write_installed_index(&index)?;
 
-        console_output::print_success(&format!("Zig {} 已卸载", resolved));
+        console_output::print_success(&format!("Zig {resolved} 已卸载"));
         Ok(())
     }
 
@@ -215,7 +215,7 @@ impl ZigManager {
         let zig_binary = self.path_manager.zig_binary_path(&resolved);
         if !zig_binary.exists() {
             return Err(ZzmError::NotInstalled {
-                version: format!("{} (二进制文件缺失)", resolved),
+                version: format!("{resolved} (二进制文件缺失)"),
             });
         }
 
@@ -226,8 +226,7 @@ impl ZigManager {
         // ~/.zzm/default -> ~/.zzm/versions/zig/0.13.0
         if let Err(e) = self.path_manager.create_default_zig_symlink(&resolved) {
             console_output::print_warning(&format!(
-                "创建 default 目录符号链接失败: {}，不影响使用，但 ZIG_HOME 模式不可用",
-                e
+                "创建 default 目录符号链接失败: {e}，不影响使用，但 ZIG_HOME 模式不可用"
             ));
         }
 
@@ -236,7 +235,7 @@ impl ZigManager {
         index.active_zig = Some(resolved.clone());
         self.path_manager.write_installed_index(&index)?;
 
-        console_output::print_success(&format!("已切换到 Zig {}", resolved));
+        console_output::print_success(&format!("已切换到 Zig {resolved}"));
         console_output::print_info(&format!(
             "提示: 设置 ZIG_HOME={} 即可通过 ZIG_HOME 使用当前版本",
             self.path_manager.default_dir().display()

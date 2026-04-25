@@ -137,7 +137,7 @@ impl IdeManager {
             let content =
                 std::fs::read_to_string(&settings_path).map_err(|e| ZzmError::ConfigError {
                     path: settings_path.display().to_string(),
-                    reason: format!("无法读取: {}", e),
+                    reason: format!("无法读取: {e}"),
                 })?;
 
             // 处理 VS Code settings.json 可能有注释的情况
@@ -148,7 +148,7 @@ impl IdeManager {
             if let Some(parent) = settings_path.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| ZzmError::ConfigError {
                     path: parent.display().to_string(),
-                    reason: format!("无法创建目录: {}", e),
+                    reason: format!("无法创建目录: {e}"),
                 })?;
             }
             VsCodeSettings::default()
@@ -160,7 +160,7 @@ impl IdeManager {
             // Windows 下使用正斜杠（VS Code 兼容）
             let path_str = path_str.replace('\\', "/");
             settings.zig_path = Some(path_str.clone());
-            console_output::print_success(&format!("zig.path = {}", path_str));
+            console_output::print_success(&format!("zig.path = {path_str}"));
         } else {
             console_output::print_warning("没有激活的 Zig 版本，跳过 zig.path 配置");
         }
@@ -169,7 +169,7 @@ impl IdeManager {
             let path_str = path.to_string_lossy().to_string();
             let path_str = path_str.replace('\\', "/");
             settings.zls_path = Some(path_str.clone());
-            console_output::print_success(&format!("zig.zls.path = {}", path_str));
+            console_output::print_success(&format!("zig.zls.path = {path_str}"));
         } else {
             console_output::print_warning("没有激活的 ZLS 版本，跳过 zig.zls.path 配置");
         }
@@ -178,12 +178,12 @@ impl IdeManager {
         let json_content =
             serde_json::to_string_pretty(&settings).map_err(|e| ZzmError::ConfigError {
                 path: settings_path.display().to_string(),
-                reason: format!("序列化失败: {}", e),
+                reason: format!("序列化失败: {e}"),
             })?;
 
         std::fs::write(&settings_path, json_content).map_err(|e| ZzmError::ConfigError {
             path: settings_path.display().to_string(),
-            reason: format!("无法写入: {}", e),
+            reason: format!("无法写入: {e}"),
         })?;
 
         console_output::print_success(&format!("VS Code 配置已更新: {}", settings_path.display()));
@@ -203,7 +203,7 @@ impl IdeManager {
         let content =
             std::fs::read_to_string(&settings_path).map_err(|e| ZzmError::ConfigError {
                 path: settings_path.display().to_string(),
-                reason: format!("无法读取: {}", e),
+                reason: format!("无法读取: {e}"),
             })?;
 
         let cleaned = clean_jsonc(&content);
@@ -227,12 +227,12 @@ impl IdeManager {
             let json_content =
                 serde_json::to_string_pretty(&settings).map_err(|e| ZzmError::ConfigError {
                     path: settings_path.display().to_string(),
-                    reason: format!("序列化失败: {}", e),
+                    reason: format!("序列化失败: {e}"),
                 })?;
 
             std::fs::write(&settings_path, json_content).map_err(|e| ZzmError::ConfigError {
                 path: settings_path.display().to_string(),
-                reason: format!("无法写入: {}", e),
+                reason: format!("无法写入: {e}"),
             })?;
         } else {
             console_output::print_info("VS Code 中没有 Zig/ZLS 配置需要移除");

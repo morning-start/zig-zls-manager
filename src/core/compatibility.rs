@@ -33,8 +33,7 @@ impl CompatibilityChecker {
             }
             return CompatibilityStatus::Incompatible {
                 reason: format!(
-                    "Zig {} (nightly) 应搭配 ZLS master/nightly 版本，当前 ZLS {} 是稳定版",
-                    zig_version, zls_version
+                    "Zig {zig_version} (nightly) 应搭配 ZLS master/nightly 版本，当前 ZLS {zls_version} 是稳定版"
                 ),
             };
         }
@@ -42,8 +41,7 @@ impl CompatibilityChecker {
         if zls_version == "master" || zls_version == "nightly" {
             return CompatibilityStatus::LikelyCompatible {
                 reason: format!(
-                    "ZLS {} (nightly) 通常兼容最新的 Zig 版本，但与 Zig {} 可能不完全匹配",
-                    zls_version, zig_version
+                    "ZLS {zls_version} (nightly) 通常兼容最新的 Zig 版本，但与 Zig {zig_version} 可能不完全匹配"
                 ),
             };
         }
@@ -78,7 +76,7 @@ impl CompatibilityChecker {
                 }
             }
             _ => CompatibilityStatus::Unknown {
-                reason: format!("无法解析版本号: Zig={}, ZLS={}", zig_version, zls_version),
+                reason: format!("无法解析版本号: Zig={zig_version}, ZLS={zls_version}"),
             },
         }
     }
@@ -90,20 +88,17 @@ impl CompatibilityChecker {
             CompatibilityStatus::Compatible => {}
             CompatibilityStatus::LikelyCompatible { reason } => {
                 console_output::print_warning(&format!(
-                    "Zig {} 与 ZLS {} 可能不完全兼容: {}",
-                    zig_version, zls_version, reason
+                    "Zig {zig_version} 与 ZLS {zls_version} 可能不完全兼容: {reason}"
                 ));
             }
             CompatibilityStatus::Incompatible { reason } => {
                 console_output::print_warning(&format!(
-                    "Zig {} 与 ZLS {} 不兼容: {}",
-                    zig_version, zls_version, reason
+                    "Zig {zig_version} 与 ZLS {zls_version} 不兼容: {reason}"
                 ));
             }
             CompatibilityStatus::Unknown { reason } => {
                 console_output::print_warning(&format!(
-                    "无法确认 Zig {} 与 ZLS {} 的兼容性: {}",
-                    zig_version, zls_version, reason
+                    "无法确认 Zig {zig_version} 与 ZLS {zls_version} 的兼容性: {reason}"
                 ));
             }
         }

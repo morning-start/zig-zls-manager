@@ -42,11 +42,11 @@ pub struct ZzmConfig {
     pub ide: IdeConfig,
 }
 
-fn default_parallel() -> u32 {
+const fn default_parallel() -> u32 {
     4
 }
 
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 
@@ -109,12 +109,12 @@ impl ConfigManager {
 
         let content = std::fs::read_to_string(&path).map_err(|e| ZzmError::ConfigError {
             path: path.display().to_string(),
-            reason: format!("无法读取配置文件: {}", e),
+            reason: format!("无法读取配置文件: {e}"),
         })?;
 
         let config: ZzmConfig = toml::from_str(&content).map_err(|e| ZzmError::ConfigError {
             path: path.display().to_string(),
-            reason: format!("配置文件格式错误: {}", e),
+            reason: format!("配置文件格式错误: {e}"),
         })?;
 
         Ok(config)
@@ -130,18 +130,18 @@ impl ConfigManager {
         {
             std::fs::create_dir_all(parent).map_err(|e| ZzmError::ConfigError {
                 path: parent.display().to_string(),
-                reason: format!("无法创建配置目录: {}", e),
+                reason: format!("无法创建配置目录: {e}"),
             })?;
         }
 
         let content = toml::to_string_pretty(config).map_err(|e| ZzmError::ConfigError {
             path: path.display().to_string(),
-            reason: format!("配置序列化失败: {}", e),
+            reason: format!("配置序列化失败: {e}"),
         })?;
 
         std::fs::write(&path, content).map_err(|e| ZzmError::ConfigError {
             path: path.display().to_string(),
-            reason: format!("无法写入配置文件: {}", e),
+            reason: format!("无法写入配置文件: {e}"),
         })?;
 
         Ok(())
@@ -149,7 +149,7 @@ impl ConfigManager {
 
     /// 获取单个配置项的值
     ///
-    /// 支持点分隔的路径，如 "ide.vscode_auto_update"
+    /// 支持点分隔的路径，如 "`ide.vscode_auto_update`"
     pub fn get(&self, key: &str) -> Result<Option<String>, ZzmError> {
         let config = self.load()?;
         let value = match key {
@@ -170,7 +170,7 @@ impl ConfigManager {
 
     /// 设置单个配置项的值
     ///
-    /// 支持点分隔的路径，如 "ide.vscode_auto_update"
+    /// 支持点分隔的路径，如 "`ide.vscode_auto_update`"
     pub fn set(&self, key: &str, value: &str) -> Result<(), ZzmError> {
         let mut config = self.load()?;
 
@@ -179,13 +179,13 @@ impl ConfigManager {
             "auto_install_zls" => {
                 config.auto_install_zls = value.parse().map_err(|_| ZzmError::ConfigError {
                     path: key.to_string(),
-                    reason: format!("期望布尔值，得到 '{}'", value),
+                    reason: format!("期望布尔值，得到 '{value}'"),
                 })?;
             }
             "auto_use" => {
                 config.auto_use = value.parse().map_err(|_| ZzmError::ConfigError {
                     path: key.to_string(),
-                    reason: format!("期望布尔值，得到 '{}'", value),
+                    reason: format!("期望布尔值，得到 '{value}'"),
                 })?;
             }
             "mirror_url" => config.mirror_url = Some(value.to_string()),
@@ -193,34 +193,34 @@ impl ConfigManager {
             "parallel_downloads" => {
                 config.parallel_downloads = value.parse().map_err(|_| ZzmError::ConfigError {
                     path: key.to_string(),
-                    reason: format!("期望正整数，得到 '{}'", value),
+                    reason: format!("期望正整数，得到 '{value}'"),
                 })?;
             }
             "verify_ssl" => {
                 config.verify_ssl = value.parse().map_err(|_| ZzmError::ConfigError {
                     path: key.to_string(),
-                    reason: format!("期望布尔值，得到 '{}'", value),
+                    reason: format!("期望布尔值，得到 '{value}'"),
                 })?;
             }
             "ide.vscode_auto_update" => {
                 config.ide.vscode_auto_update =
                     value.parse().map_err(|_| ZzmError::ConfigError {
                         path: key.to_string(),
-                        reason: format!("期望布尔值，得到 '{}'", value),
+                        reason: format!("期望布尔值，得到 '{value}'"),
                     })?;
             }
             "ide.vscode_set_zls_path" => {
                 config.ide.vscode_set_zls_path =
                     value.parse().map_err(|_| ZzmError::ConfigError {
                         path: key.to_string(),
-                        reason: format!("期望布尔值，得到 '{}'", value),
+                        reason: format!("期望布尔值，得到 '{value}'"),
                     })?;
             }
             "ide.vscode_settings_path" => config.ide.vscode_settings_path = Some(value.to_string()),
             _ => {
                 return Err(ZzmError::ConfigError {
                     path: key.to_string(),
-                    reason: format!("未知的配置项: {}", key),
+                    reason: format!("未知的配置项: {key}"),
                 });
             }
         }
