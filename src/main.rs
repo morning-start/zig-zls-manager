@@ -404,11 +404,41 @@ async fn cmd_setup(
 
     // PATH 提示
     let bin_dir = platform.bin_dir();
+    let default_dir = platform.default_dir();
     if !platform.is_bin_in_path() {
-        console_output::print_warning(&format!(
-            "请将 {} 添加到 PATH 环境变量",
+        console_output::print_warning("PATH 环境变量未配置，请选择以下方式之一：");
+        console_output::print_info(&format!(
+            "  方式 1 (PATH 模式): 将 {} 添加到 PATH",
             bin_dir.to_string_lossy()
         ));
+        if cfg!(windows) {
+            console_output::print_info("    PowerShell (用户级):");
+            console_output::print_info(&format!(
+                "      [Environment]::SetEnvironmentVariable(\"Path\", [Environment]::GetEnvironmentVariable(\"Path\", \"User\") + \";{}\", \"User\")",
+                bin_dir.to_string_lossy()
+            ));
+        } else {
+            console_output::print_info(&format!(
+                "    echo 'export PATH=\"{}:$PATH\"' >> ~/.bashrc",
+                bin_dir.to_string_lossy()
+            ));
+        }
+        console_output::print_info(&format!(
+            "  方式 2 (ZIG_HOME 模式): 设置环境变量 ZIG_HOME={}",
+            default_dir.display()
+        ));
+        if cfg!(windows) {
+            console_output::print_info("    PowerShell (用户级):");
+            console_output::print_info(&format!(
+                "      [Environment]::SetEnvironmentVariable(\"ZIG_HOME\", \"{}\", \"User\")",
+                default_dir.display()
+            ));
+        } else {
+            console_output::print_info(&format!(
+                "    echo 'export ZIG_HOME=\"{}\"' >> ~/.bashrc",
+                default_dir.display()
+            ));
+        }
     }
 
     Ok(())
@@ -758,7 +788,11 @@ async fn cmd_doctor(platform: &dyn platform::PlatformTrait) -> Result<(), utils:
                 let default_dir = platform.default_dir();
                 if default_dir.exists() {
                     if cfg!(windows) {
-                        "✓ 已配置".to_string()
+                        // Windows 上可能是 junction，尝试读取
+                        match std::fs::read_link(&default_dir) {
+                            Ok(target) => format!("✓ -> {}", target.display()),
+                            Err(_) => "✓ 已配置（junction 或真实目录）".to_string(),
+                        }
                     } else {
                         match std::fs::read_link(&default_dir) {
                             Ok(target) => format!("✓ -> {}", target.display()),
