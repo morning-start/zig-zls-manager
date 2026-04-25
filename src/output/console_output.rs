@@ -5,7 +5,7 @@ thread_local! {
     static NO_COLOR: RefCell<bool> = const { RefCell::new(false) };
 }
 
-/// 设置全局 no_color 标志
+/// 设置全局 `no_color` 标志
 pub fn set_no_color(no_color: bool) {
     NO_COLOR.with(|flag| {
         *flag.borrow_mut() = no_color;
@@ -20,7 +20,7 @@ fn is_no_color() -> bool {
 /// 打印成功消息（绿色 ✓）
 pub fn print_success(msg: &str) {
     if is_no_color() {
-        println!("[OK] {}", msg);
+        println!("[OK] {msg}");
     } else {
         println!("{} {}", style("✓").green().bold(), msg);
     }
@@ -29,7 +29,7 @@ pub fn print_success(msg: &str) {
 /// 打印警告消息（黄色 ⚠）
 pub fn print_warning(msg: &str) {
     if is_no_color() {
-        println!("[WARN] {}", msg);
+        println!("[WARN] {msg}");
     } else {
         println!("{} {}", style("⚠").yellow().bold(), msg);
     }
@@ -38,7 +38,7 @@ pub fn print_warning(msg: &str) {
 /// 打印错误消息（红色 ✗）
 pub fn print_error(msg: &str) {
     if is_no_color() {
-        eprintln!("[ERROR] {}", msg);
+        eprintln!("[ERROR] {msg}");
     } else {
         eprintln!("{} {}", style("✗").red().bold(), msg);
     }
@@ -47,7 +47,7 @@ pub fn print_error(msg: &str) {
 /// 打印信息消息（蓝色 ℹ）
 pub fn print_info(msg: &str) {
     if is_no_color() {
-        println!("[INFO] {}", msg);
+        println!("[INFO] {msg}");
     } else {
         println!("{} {}", style("ℹ").blue(), msg);
     }
@@ -56,7 +56,7 @@ pub fn print_info(msg: &str) {
 /// 打印步骤消息（带编号的操作步骤）
 pub fn print_step(step: usize, total: usize, msg: &str) {
     if is_no_color() {
-        println!("[{}/{}] {}", step, total, msg);
+        println!("[{step}/{total}] {msg}");
     } else {
         println!("{} {}/{} {}", style("▸").cyan(), step, total, msg);
     }
@@ -65,7 +65,7 @@ pub fn print_step(step: usize, total: usize, msg: &str) {
 /// 打印带标题的分隔线
 pub fn print_header(title: &str) {
     if is_no_color() {
-        println!("{}", title);
+        println!("{title}");
         println!("{}", "─".repeat(50));
     } else {
         println!("{}", style(title).bold());

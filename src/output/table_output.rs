@@ -43,27 +43,27 @@ pub struct RemoteVersionRow {
 pub fn render_version_table(rows: &[VersionRow]) {
     let mut table = Table::new(rows);
     table.with(Style::rounded());
-    println!("{}", table);
+    println!("{table}");
 }
 
 /// 渲染已安装版本表格
 pub fn render_installed_table(rows: &[InstalledVersionRow]) {
     let mut table = Table::new(rows);
     table.with(Style::rounded());
-    println!("{}", table);
+    println!("{table}");
 }
 
 /// 渲染远程版本表格
 pub fn render_remote_table(rows: &[RemoteVersionRow]) {
     let mut table = Table::new(rows);
     table.with(Style::rounded());
-    println!("{}", table);
+    println!("{table}");
 }
 
 /// 渲染通用键值对表格
 pub fn render_kv_table(title: &str, items: &[(&str, String)]) {
-    println!("{}", title);
+    println!("{title}");
     for (key, value) in items {
-        println!("  {}: {}", key, value);
+        println!("  {key}: {value}");
     }
 }

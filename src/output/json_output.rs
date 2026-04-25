@@ -5,7 +5,7 @@ use crate::utils::error::ZzmError;
 /// 以 JSON 格式输出数据
 pub fn print_json<T: Serialize>(data: &T) -> Result<(), ZzmError> {
     let json = serde_json::to_string_pretty(data)?;
-    println!("{}", json);
+    println!("{json}");
     Ok(())
 }
 
