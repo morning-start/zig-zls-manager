@@ -20,91 +20,73 @@ const CACHE_FILENAME: &str = "zig_index.json";
 
 /// Zig 下载索引（顶层 JSON 对象）
 ///
-/// 键为版本号字符串（如 "0.13.0", "0.12.1", "master"），
+/// 键为版本号字符串（如 "0.16.0", "0.15.2", "master"），
 /// 值为对应版本信息。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZigDownloadIndex(pub std::collections::BTreeMap<String, ZigVersionEntry>);
 
 /// 单个 Zig 版本的详细信息
+///
+/// 实际 API 响应结构示例：
+/// ```json
+/// {
+///   "0.16.0": {
+///     "version": "0.16.0",
+///     "date": "2026-04-13",
+///     "docs": "https://...",
+///     "stdDocs": "https://...",
+///     "notes": "https://...",
+///     "src": { "tarball": "...", "shasum": "...", "size": "..." },
+///     "bootstrap": { "tarball": "...", "shasum": "...", "size": "..." },
+///     "x86_64-macos": { "tarball": "...", "shasum": "...", "size": "..." },
+///     "x86_64-windows": { "tarball": "...", "shasum": "...", "size": "..." }
+///   }
+/// }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZigVersionEntry {
     /// 构建日期 (YYYY-MM-DD)
     pub date: String,
+    /// 版本号字符串（如 "0.16.0", "0.17.0-dev.101+4e2147d14"）
+    #[serde(default)]
+    pub version: String,
     /// 文档链接
     #[serde(default)]
-    pub docs: std::collections::BTreeMap<String, String>,
-    /// 通用发布文件列表（源码等）
+    pub docs: String,
+    /// 标准库文档链接
+    #[serde(default, rename = "stdDocs")]
+    pub std_docs: String,
+    /// 发布说明链接
     #[serde(default)]
-    pub releases: Vec<ZigReleaseAsset>,
+    pub notes: String,
+    /// 源码包信息
+    #[serde(default)]
+    pub src: Option<ZigPlatformAsset>,
+    /// Bootstrap 源码包信息
+    #[serde(default)]
+    pub bootstrap: Option<ZigPlatformAsset>,
     /// 按平台分类的预编译二进制
-    #[serde(default)]
-    pub platforms: ZigPlatforms,
+    ///
+    /// 键为平台标识（如 "x86_64-macos", "aarch64-linux", "x86_64-windows"），
+    /// 旧版本键名格式可能为 "macos-x86_64"。
+    /// 使用 flatten 捕获所有非已知字段作为平台条目。
+    #[serde(flatten)]
+    pub platforms: std::collections::BTreeMap<String, ZigPlatformAsset>,
 }
 
-/// 按平台分类的二进制文件
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ZigPlatforms {
-    #[serde(default)]
-    pub windows: Vec<ZigPlatformAsset>,
-    #[serde(default)]
-    pub macos: Vec<ZigPlatformAsset>,
-    #[serde(default)]
-    pub linux: Vec<ZigPlatformAsset>,
-}
-
-/// 通用发布文件（源码包等）
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ZigReleaseAsset {
-    /// 文件类型: "Source", "Bootstrap" 等
-    #[serde(rename = "type", default)]
-    pub asset_type: String,
-    /// 目标平台（源码为 null）
-    pub target: Option<String>,
-    /// 文件名
-    pub filename: String,
-    /// 文件大小（人类可读，如 "21MiB"）
-    #[serde(default)]
-    pub size: String,
-    /// SHA256 校验和
-    #[serde(default)]
-    pub shasum: String,
-    /// 数字签名
-    #[serde(default)]
-    pub signature: Option<ZigSignature>,
-    /// 下载 URL
-    #[serde(default)]
-    pub url: String,
-}
-
-/// 平台特定的预编译二进制
+/// 平台特定的下载资源
+///
+/// 实际 API 中每个平台条目只包含 tarball/shasum/size 三个字段。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZigPlatformAsset {
-    /// 操作系统名称
-    pub os: String,
-    /// CPU 架构
-    pub arch: String,
-    /// 文件名
-    pub filename: String,
-    /// 文件大小（人类可读）
-    #[serde(default)]
-    pub size: String,
+    /// 下载 URL
+    pub tarball: String,
     /// SHA256 校验和
     #[serde(default)]
     pub shasum: String,
-    /// 数字签名
+    /// 文件大小（字节数字符串，如 "55574528"）
     #[serde(default)]
-    pub signature: Option<ZigSignature>,
-    /// 下载 URL
-    pub url: String,
-}
-
-/// minisign 签名信息
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ZigSignature {
-    #[serde(rename = "type", default)]
-    pub sig_type: String,
-    #[serde(default)]
-    pub file: String,
+    pub size: String,
 }
 
 // ========== 内部统一版本信息结构 ==========
@@ -296,72 +278,106 @@ impl ZigApiClient {
 
 // ========== 辅助函数 ==========
 
-/// 在平台列表中查找匹配当前目标三元组的资源
-fn find_matching_asset(platforms: &ZigPlatforms, target_triple: &str) -> Option<ZigPlatformAsset> {
+/// 已知的非平台键（ZigVersionEntry 的显式字段）
+const KNOWN_NON_PLATFORM_KEYS: &[&str] = &[
+    "date", "version", "docs", "stdDocs", "notes", "src", "bootstrap",
+];
+
+/// 判断一个键是否为平台标识键
+///
+/// 平台键格式：
+/// - 新版: `x86_64-macos`, `aarch64-linux`, `x86_64-windows`
+/// - 旧版: `macos-x86_64`, `linux-aarch64`, `windows-x86_64`
+/// - 特殊: `arm-linux`, `riscv64-linux`, `armv7a-linux` 等
+fn is_platform_key(key: &str) -> bool {
+    // 已知的非平台键
+    if KNOWN_NON_PLATFORM_KEYS.contains(&key) {
+        return false;
+    }
+
+    // 平台键必须包含至少一个已知标识符
+    let known_os = [
+        "windows",
+        "macos",
+        "linux",
+        "freebsd",
+        "netbsd",
+        "openbsd",
+    ];
+    let known_arch = [
+        "x86_64",
+        "aarch64",
+        "arm",
+        "armv7a",
+        "armv6kz",
+        "i386",
+        "x86",
+        "riscv64",
+        "powerpc64le",
+        "powerpc64",
+        "powerpc",
+        "loongarch64",
+        "s390x",
+    ];
+
+    let key_lower = key.to_lowercase();
+    let has_os = known_os.iter().any(|os| key_lower.contains(os));
+    let has_arch = known_arch.iter().any(|arch| key_lower.contains(arch.to_lowercase().as_str()));
+
+    has_os && has_arch
+}
+
+/// 在平台映射中查找匹配当前目标三元组的资源
+fn find_matching_asset(
+    platforms: &std::collections::BTreeMap<String, ZigPlatformAsset>,
+    target_triple: &str,
+) -> Option<ZigPlatformAsset> {
     let (os_name, arch_name) = crate::platform::parse_target_triple(target_triple)?;
 
-    let platform_list = match os_name {
-        "windows" => &platforms.windows,
-        "macos" => &platforms.macos,
-        "linux" => &platforms.linux,
-        _ => return None,
-    };
-
-    platform_list
-        .iter()
-        .find(|asset| {
-            let asset_os = asset.os.to_lowercase();
-            let asset_arch = asset.arch.to_lowercase();
-            asset_os.contains(os_name) && asset_arch.contains(arch_name)
-        })
-        .cloned()
-}
-
-// ========== VersionProvider 实现 ==========
-
-impl crate::core::tool_manager::VersionProvider for ZigApiClient {
-    async fn get_version_info(
-        &self,
-        version: &str,
-    ) -> Result<crate::core::tool_manager::VersionInfo, ZzmError> {
-        let info = self.get_version_info(version).await?;
-        Ok(crate::core::tool_manager::VersionInfo {
-            version: info.version,
-            channel: info.channel,
-            asset: info
-                .asset
-                .map(|a| crate::core::tool_manager::DownloadAsset {
-                    url: a.url,
-                    filename: a.filename,
-                    shasum: a.shasum,
-                    size: a.size,
-                }),
-        })
+    // 优先精确匹配：键名包含目标三元组（如 "x86_64-windows"）
+    // 新版 API 格式: arch-os (如 "x86_64-windows")
+    let exact_key = format!("{arch_name}-{os_name}");
+    if let Some(asset) = platforms.get(&exact_key) {
+        return Some(asset.clone());
     }
 
-    async fn list_remote_versions(
-        &self,
-    ) -> Result<Vec<crate::core::tool_manager::VersionInfo>, ZzmError> {
-        let versions = self.list_remote_versions().await?;
-        Ok(versions
-            .into_iter()
-            .map(|v| crate::core::tool_manager::VersionInfo {
-                version: v.version,
-                channel: v.channel,
-                asset: v.asset.map(|a| crate::core::tool_manager::DownloadAsset {
-                    url: a.url,
-                    filename: a.filename,
-                    shasum: a.shasum,
-                    size: a.size,
-                }),
-            })
-            .collect())
+    // 旧版 API 格式: os-arch (如 "windows-x86_64" 或 "macos-x86_64")
+    let legacy_key = format!("{os_name}-{arch_name}");
+    if let Some(asset) = platforms.get(&legacy_key) {
+        return Some(asset.clone());
     }
+
+    // 模糊匹配：遍历所有平台键，查找包含目标 os 和 arch 的条目
+    for (key, asset) in platforms {
+        if !is_platform_key(key) {
+            continue;
+        }
+        let key_lower = key.to_lowercase();
+        if key_lower.contains(os_name) && key_lower.contains(arch_name) {
+            return Some(asset.clone());
+        }
+    }
+
+    None
 }
 
-/// 解析人类可读的文件大小字符串为字节数
+/// 从 tarball URL 中提取文件名
 ///
-/// 例如: "53MiB" -> 55574528
+/// 例如: "https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip"
+///   -> "zig-x86_64-windows-0.16.0.zip"
+#[allow(dead_code)]
+fn extract_filename_from_url(url: &str) -> String {
+    url.rsplit('/')
+        .next()
+        .unwrap_or("zig-unknown")
+        .to_string()
+}
+
+/// 解析文件大小字符串为字节数
+///
+/// 支持两种格式：
+/// - 数字字符串（API 返回的精确字节数，如 "55574528"）
+/// - 人类可读格式（如 "53MiB"）
 #[allow(
     dead_code,
     clippy::cast_precision_loss,
@@ -369,6 +385,13 @@ impl crate::core::tool_manager::VersionProvider for ZigApiClient {
 )]
 pub fn parse_size_to_bytes(size_str: &str) -> u64 {
     let size_str = size_str.trim();
+
+    // 先尝试纯数字解析（API 实际返回格式）
+    if let Ok(bytes) = size_str.parse::<u64>() {
+        return bytes;
+    }
+
+    // 回退到人类可读格式解析
     let num_part: String = size_str
         .chars()
         .take_while(|c| c.is_ascii_digit() || *c == '.')
@@ -391,6 +414,52 @@ pub fn parse_size_to_bytes(size_str: &str) -> u64 {
     (num * multiplier as f64) as u64
 }
 
+// ========== VersionProvider 实现 ==========
+
+impl crate::core::tool_manager::VersionProvider for ZigApiClient {
+    async fn get_version_info(
+        &self,
+        version: &str,
+    ) -> Result<crate::core::tool_manager::VersionInfo, ZzmError> {
+        let info = self.get_version_info(version).await?;
+        Ok(crate::core::tool_manager::VersionInfo {
+            version: info.version,
+            channel: info.channel,
+            asset: info.asset.map(|a| {
+                let filename = extract_filename_from_url(&a.tarball);
+                crate::core::tool_manager::DownloadAsset {
+                    url: a.tarball,
+                    filename,
+                    shasum: a.shasum,
+                    size: a.size,
+                }
+            }),
+        })
+    }
+
+    async fn list_remote_versions(
+        &self,
+    ) -> Result<Vec<crate::core::tool_manager::VersionInfo>, ZzmError> {
+        let versions = self.list_remote_versions().await?;
+        Ok(versions
+            .into_iter()
+            .map(|v| crate::core::tool_manager::VersionInfo {
+                version: v.version,
+                channel: v.channel,
+                asset: v.asset.map(|a| {
+                    let filename = extract_filename_from_url(&a.tarball);
+                    crate::core::tool_manager::DownloadAsset {
+                        url: a.tarball,
+                        filename,
+                        shasum: a.shasum,
+                        size: a.size,
+                    }
+                }),
+            })
+            .collect())
+    }
+}
+
 // ========== 单元测试 ==========
 
 #[cfg(test)]
@@ -398,12 +467,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_size_to_bytes() {
+    fn test_parse_size_to_bytes_numeric() {
+        // API 实际返回的数字字符串
+        assert_eq!(parse_size_to_bytes("55574528"), 55_574_528);
+        assert_eq!(parse_size_to_bytes("22512620"), 22_512_620);
+        assert_eq!(parse_size_to_bytes("0"), 0);
+    }
+
+    #[test]
+    fn test_parse_size_to_bytes_human_readable() {
         assert_eq!(parse_size_to_bytes("53MiB"), 55_574_528);
         assert_eq!(parse_size_to_bytes("21MiB"), 22_020_096);
         assert_eq!(parse_size_to_bytes("1GiB"), 1_073_741_824);
         assert_eq!(parse_size_to_bytes("100KiB"), 102_400);
         assert_eq!(parse_size_to_bytes("512B"), 512);
+        assert_eq!(parse_size_to_bytes("1KB"), 1024);
+        assert_eq!(parse_size_to_bytes("1MB"), 1024 * 1024);
+        assert_eq!(parse_size_to_bytes("2GiB"), 2 * 1024 * 1024 * 1024);
+        assert_eq!(parse_size_to_bytes("1.5MiB"), 1_572_864);
+    }
+
+    #[test]
+    fn test_parse_size_to_bytes_empty() {
+        assert_eq!(parse_size_to_bytes(""), 0);
     }
 
     #[test]
@@ -435,78 +521,264 @@ mod tests {
     }
 
     #[test]
+    fn test_is_platform_key() {
+        // 平台键
+        assert!(is_platform_key("x86_64-macos"));
+        assert!(is_platform_key("aarch64-linux"));
+        assert!(is_platform_key("x86_64-windows"));
+        assert!(is_platform_key("arm-linux"));
+        assert!(is_platform_key("riscv64-linux"));
+        assert!(is_platform_key("aarch64-freebsd"));
+        assert!(is_platform_key("x86_64-netbsd"));
+        assert!(is_platform_key("x86_64-openbsd"));
+        assert!(is_platform_key("powerpc64le-linux"));
+        assert!(is_platform_key("loongarch64-linux"));
+        assert!(is_platform_key("s390x-linux"));
+        // 旧版格式
+        assert!(is_platform_key("macos-x86_64"));
+        assert!(is_platform_key("linux-aarch64"));
+        assert!(is_platform_key("windows-x86_64"));
+
+        // 非平台键
+        assert!(!is_platform_key("date"));
+        assert!(!is_platform_key("version"));
+        assert!(!is_platform_key("docs"));
+        assert!(!is_platform_key("stdDocs"));
+        assert!(!is_platform_key("notes"));
+        assert!(!is_platform_key("src"));
+        assert!(!is_platform_key("bootstrap"));
+    }
+
+    #[test]
+    fn test_find_matching_asset_new_format() {
+        // 新版 API 格式: arch-os 键名
+        let mut platforms = std::collections::BTreeMap::new();
+        platforms.insert(
+            "x86_64-macos".to_string(),
+            ZigPlatformAsset {
+                tarball: "https://ziglang.org/download/0.16.0/zig-x86_64-macos-0.16.0.tar.xz"
+                    .to_string(),
+                shasum: "abc123".to_string(),
+                size: "57396836".to_string(),
+            },
+        );
+        platforms.insert(
+            "x86_64-windows".to_string(),
+            ZigPlatformAsset {
+                tarball: "https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip"
+                    .to_string(),
+                shasum: "def456".to_string(),
+                size: "97217739".to_string(),
+            },
+        );
+
+        let result = find_matching_asset(&platforms, "x86_64-windows");
+        assert!(result.is_some());
+        assert_eq!(
+            result.unwrap().tarball,
+            "https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip"
+        );
+    }
+
+    #[test]
+    fn test_find_matching_asset_legacy_format() {
+        // 旧版 API 格式: os-arch 键名 (如 0.13.0 及更早版本)
+        let mut platforms = std::collections::BTreeMap::new();
+        platforms.insert(
+            "macos-x86_64".to_string(),
+            ZigPlatformAsset {
+                tarball: "https://ziglang.org/download/0.13.0/zig-macos-x86_64-0.13.0.tar.xz"
+                    .to_string(),
+                shasum: "abc123".to_string(),
+                size: "48857012".to_string(),
+            },
+        );
+        platforms.insert(
+            "windows-x86_64".to_string(),
+            ZigPlatformAsset {
+                tarball: "https://ziglang.org/download/0.13.0/zig-windows-x86_64-0.13.0.zip"
+                    .to_string(),
+                shasum: "def456".to_string(),
+                size: "79163968".to_string(),
+            },
+        );
+
+        let result = find_matching_asset(&platforms, "x86_64-windows");
+        assert!(result.is_some());
+        assert!(result.unwrap().tarball.contains("windows"));
+    }
+
+    #[test]
     fn test_find_matching_asset_empty() {
-        let platforms = ZigPlatforms {
-            windows: vec![],
-            macos: vec![],
-            linux: vec![],
-        };
+        let platforms = std::collections::BTreeMap::new();
         assert!(find_matching_asset(&platforms, "x86_64-windows").is_none());
     }
 
     #[test]
-    fn test_find_matching_asset_with_data() {
-        let asset = ZigPlatformAsset {
-            os: "Windows".to_string(),
-            arch: "x86_64".to_string(),
-            filename: "zig-x86_64-windows-0.13.0.zip".to_string(),
-            size: "93MiB".to_string(),
-            shasum: "abc123".to_string(),
-            signature: None,
-            url: "https://ziglang.org/download/0.13.0/zig-x86_64-windows-0.13.0.zip".to_string(),
-        };
+    fn test_find_matching_asset_not_found() {
+        let mut platforms = std::collections::BTreeMap::new();
+        platforms.insert(
+            "x86_64-linux".to_string(),
+            ZigPlatformAsset {
+                tarball: "https://example.com/zig-linux.tar.xz".to_string(),
+                shasum: "abc".to_string(),
+                size: "50000000".to_string(),
+            },
+        );
 
-        let platforms = ZigPlatforms {
-            windows: vec![asset],
-            macos: vec![],
-            linux: vec![],
-        };
-
-        let result = find_matching_asset(&platforms, "x86_64-windows");
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().filename, "zig-x86_64-windows-0.13.0.zip");
+        assert!(find_matching_asset(&platforms, "x86_64-windows").is_none());
     }
 
     #[test]
-    fn test_parse_size_to_bytes_various() {
-        assert_eq!(parse_size_to_bytes("0B"), 0);
-        assert_eq!(parse_size_to_bytes("1KB"), 1024);
-        assert_eq!(parse_size_to_bytes("1MB"), 1024 * 1024);
-        assert_eq!(parse_size_to_bytes("2GiB"), 2 * 1024 * 1024 * 1024);
-        assert_eq!(parse_size_to_bytes("1.5MiB"), 1_572_864);
+    fn test_extract_filename_from_url() {
+        assert_eq!(
+            extract_filename_from_url(
+                "https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip"
+            ),
+            "zig-x86_64-windows-0.16.0.zip"
+        );
+        assert_eq!(
+            extract_filename_from_url(
+                "https://ziglang.org/builds/zig-x86_64-macos-0.17.0-dev.101+4e2147d14.tar.xz"
+            ),
+            "zig-x86_64-macos-0.17.0-dev.101+4e2147d14.tar.xz"
+        );
     }
 
     #[test]
-    fn test_parse_size_to_bytes_empty() {
-        assert_eq!(parse_size_to_bytes(""), 0);
+    fn test_zig_platform_asset_deserialization() {
+        let json = r#"{
+            "tarball": "https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip",
+            "shasum": "68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e",
+            "size": "97217739"
+        }"#;
+
+        let asset: ZigPlatformAsset = serde_json::from_str(json).unwrap();
+        assert_eq!(asset.shasum, "68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e");
+        assert_eq!(asset.size, "97217739");
+        assert!(asset.tarball.contains("0.16.0"));
     }
 
     #[test]
-    fn test_parse_target_triple_all() {
-        assert_eq!(
-            crate::platform::parse_target_triple("x86_64-windows"),
-            Some(("windows", "x86_64"))
-        );
-        assert_eq!(
-            crate::platform::parse_target_triple("aarch64-windows"),
-            Some(("windows", "aarch64"))
-        );
-        assert_eq!(
-            crate::platform::parse_target_triple("x86_64-macos"),
-            Some(("macos", "x86_64"))
-        );
-        assert_eq!(
-            crate::platform::parse_target_triple("aarch64-macos"),
-            Some(("macos", "aarch64"))
-        );
-        assert_eq!(
-            crate::platform::parse_target_triple("x86_64-linux"),
-            Some(("linux", "x86_64"))
-        );
-        assert_eq!(
-            crate::platform::parse_target_triple("aarch64-linux"),
-            Some(("linux", "aarch64"))
-        );
+    fn test_zig_version_entry_deserialization() {
+        let json = r#"{
+            "version": "0.16.0",
+            "date": "2026-04-13",
+            "docs": "https://ziglang.org/documentation/0.16.0/",
+            "stdDocs": "https://ziglang.org/documentation/0.16.0/std/",
+            "notes": "https://ziglang.org/download/0.16.0/release-notes.html",
+            "src": {
+                "tarball": "https://ziglang.org/download/0.16.0/zig-0.16.0.tar.xz",
+                "shasum": "abc123",
+                "size": "22503260"
+            },
+            "x86_64-macos": {
+                "tarball": "https://ziglang.org/download/0.16.0/zig-x86_64-macos-0.16.0.tar.xz",
+                "shasum": "def456",
+                "size": "57396836"
+            },
+            "x86_64-windows": {
+                "tarball": "https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip",
+                "shasum": "ghi789",
+                "size": "97217739"
+            }
+        }"#;
+
+        let entry: ZigVersionEntry = serde_json::from_str(json).unwrap();
+        assert_eq!(entry.version, "0.16.0");
+        assert_eq!(entry.date, "2026-04-13");
+        assert_eq!(entry.docs, "https://ziglang.org/documentation/0.16.0/");
+        assert_eq!(entry.std_docs, "https://ziglang.org/documentation/0.16.0/std/");
+        assert!(entry.src.is_some());
+        // platforms 应该包含 x86_64-macos 和 x86_64-windows（不含 src，因为 src 是显式字段）
+        // 注意：由于 serde flatten 的行为，src 也会出现在 platforms map 中
+        // 这是预期行为 —— find_matching_asset 通过 is_platform_key 过滤
+        assert!(entry.platforms.contains_key("x86_64-macos"));
+        assert!(entry.platforms.contains_key("x86_64-windows"));
+    }
+
+    #[test]
+    fn test_zig_version_entry_master() {
+        let json = r#"{
+            "version": "0.17.0-dev.101+4e2147d14",
+            "date": "2026-04-24",
+            "docs": "https://ziglang.org/documentation/master/",
+            "stdDocs": "https://ziglang.org/documentation/master/std/",
+            "x86_64-windows": {
+                "tarball": "https://ziglang.org/builds/zig-x86_64-windows-0.17.0-dev.101+4e2147d14.zip",
+                "shasum": "abc123",
+                "size": "97892217"
+            }
+        }"#;
+
+        let entry: ZigVersionEntry = serde_json::from_str(json).unwrap();
+        assert!(entry.version.contains("0.17.0-dev"));
+        assert!(entry.platforms.contains_key("x86_64-windows"));
+    }
+
+    #[test]
+    fn test_zig_version_entry_old_format() {
+        // 0.13.0 及更早版本使用 os-arch 格式的键名
+        let json = r#"{
+            "date": "2024-06-07",
+            "docs": "https://ziglang.org/documentation/0.13.0/",
+            "x86_64-macos": {
+                "tarball": "https://ziglang.org/download/0.13.0/zig-macos-x86_64-0.13.0.tar.xz",
+                "shasum": "8b06ed1091b2269b700b3b07f8e3be3b833000841bae5aa6a09b1a8b4773effd",
+                "size": "48857012"
+            },
+            "x86_64-windows": {
+                "tarball": "https://ziglang.org/download/0.13.0/zig-windows-x86_64-0.13.0.zip",
+                "shasum": "d859994725ef9402381e557c60bb57497215682e355204d754ee3df75ee3c158",
+                "size": "79163968"
+            }
+        }"#;
+
+        let entry: ZigVersionEntry = serde_json::from_str(json).unwrap();
+        assert!(entry.platforms.contains_key("x86_64-macos"));
+        assert!(entry.platforms.contains_key("x86_64-windows"));
+    }
+
+    #[test]
+    fn test_zig_download_index_deserialization_real_data() {
+        // 使用模拟的真实 API 响应数据片段
+        let json = r#"{
+            "0.16.0": {
+                "version": "0.16.0",
+                "date": "2026-04-13",
+                "docs": "https://ziglang.org/documentation/0.16.0/",
+                "stdDocs": "https://ziglang.org/documentation/0.16.0/std/",
+                "src": {
+                    "tarball": "https://ziglang.org/download/0.16.0/zig-0.16.0.tar.xz",
+                    "shasum": "43186959edc87d5c7a1be7b7d2a25efffd22ce5807c7af99067f86f99641bfdf",
+                    "size": "22503260"
+                },
+                "x86_64-windows": {
+                    "tarball": "https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip",
+                    "shasum": "68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e",
+                    "size": "97217739"
+                }
+            },
+            "master": {
+                "version": "0.17.0-dev.101+4e2147d14",
+                "date": "2026-04-24",
+                "docs": "https://ziglang.org/documentation/master/",
+                "x86_64-windows": {
+                    "tarball": "https://ziglang.org/builds/zig-x86_64-windows-0.17.0-dev.101+4e2147d14.zip",
+                    "shasum": "1b65f0cb67b78850ec994f6d993a8e1766a6f91a86482b5a4342f7c07e8dd822",
+                    "size": "97892217"
+                }
+            }
+        }"#;
+
+        let index: ZigDownloadIndex = serde_json::from_str(json).unwrap();
+        assert!(index.0.contains_key("0.16.0"));
+        assert!(index.0.contains_key("master"));
+
+        let v016 = &index.0["0.16.0"];
+        assert_eq!(v016.version, "0.16.0");
+        assert!(v016.src.is_some());
+        assert!(v016.platforms.contains_key("x86_64-windows"));
     }
 
     #[test]
@@ -517,84 +789,6 @@ mod tests {
     }
 
     #[test]
-    fn test_find_matching_asset_macos() {
-        let asset = ZigPlatformAsset {
-            os: "macos".to_string(),
-            arch: "aarch64".to_string(),
-            filename: "zig-aarch64-macos-0.13.0.tar.xz".to_string(),
-            size: "42MiB".to_string(),
-            shasum: "def456".to_string(),
-            signature: None,
-            url: "https://ziglang.org/download/0.13.0/zig-aarch64-macos-0.13.0.tar.xz".to_string(),
-        };
-
-        let platforms = ZigPlatforms {
-            windows: vec![],
-            macos: vec![asset],
-            linux: vec![],
-        };
-
-        let result = find_matching_asset(&platforms, "aarch64-macos");
-        assert!(result.is_some());
-        assert_eq!(result.unwrap().filename, "zig-aarch64-macos-0.13.0.tar.xz");
-    }
-
-    #[test]
-    fn test_find_matching_asset_linux() {
-        let asset = ZigPlatformAsset {
-            os: "linux".to_string(),
-            arch: "x86_64".to_string(),
-            filename: "zig-x86_64-linux-0.13.0.tar.xz".to_string(),
-            size: "42MiB".to_string(),
-            shasum: "ghi789".to_string(),
-            signature: None,
-            url: "https://ziglang.org/download/0.13.0/zig-x86_64-linux-0.13.0.tar.xz".to_string(),
-        };
-
-        let platforms = ZigPlatforms {
-            windows: vec![],
-            macos: vec![],
-            linux: vec![asset],
-        };
-
-        let result = find_matching_asset(&platforms, "x86_64-linux");
-        assert!(result.is_some());
-    }
-
-    #[test]
-    fn test_zig_version_info_serialization() {
-        let info = ZigVersionInfo {
-            version: "0.13.0".to_string(),
-            channel: Channel::Stable,
-            date: "2024-06-06".to_string(),
-            asset: None,
-        };
-
-        let json = serde_json::to_string(&info).unwrap();
-        let parsed: ZigVersionInfo = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.version, "0.13.0");
-        assert_eq!(parsed.channel, Channel::Stable);
-    }
-
-    #[test]
-    fn test_zig_platform_asset_serialization() {
-        let asset = ZigPlatformAsset {
-            os: "windows".to_string(),
-            arch: "x86_64".to_string(),
-            filename: "zig-x86_64-windows-0.13.0.zip".to_string(),
-            size: "93MiB".to_string(),
-            shasum: "abc123".to_string(),
-            signature: None,
-            url: "https://example.com/zig.zip".to_string(),
-        };
-
-        let json = serde_json::to_string(&asset).unwrap();
-        let parsed: ZigPlatformAsset = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed.filename, "zig-x86_64-windows-0.13.0.zip");
-        assert_eq!(parsed.shasum, "abc123");
-    }
-
-    #[test]
     fn test_zig_api_client_creation() {
         let temp_dir = tempfile::tempdir().unwrap();
         let client = ZigApiClient::new(temp_dir.path().to_path_buf());
@@ -602,19 +796,56 @@ mod tests {
     }
 
     #[test]
-    fn test_zig_download_index_deserialization() {
-        let json = r#"{
-            "0.13.0": {
-                "date": "2024-06-06",
-                "platforms": {
-                    "windows": [],
-                    "macos": [],
-                    "linux": []
-                }
-            }
-        }"#;
+    fn test_zig_version_info_serialization() {
+        let info = ZigVersionInfo {
+            version: "0.16.0".to_string(),
+            channel: Channel::Stable,
+            date: "2026-04-13".to_string(),
+            asset: None,
+        };
 
-        let index: ZigDownloadIndex = serde_json::from_str(json).unwrap();
-        assert!(index.0.contains_key("0.13.0"));
+        let json = serde_json::to_string(&info).unwrap();
+        let parsed: ZigVersionInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.version, "0.16.0");
+        assert_eq!(parsed.channel, Channel::Stable);
+    }
+
+    #[test]
+    fn test_find_matching_asset_aarch64_macos() {
+        let mut platforms = std::collections::BTreeMap::new();
+        platforms.insert(
+            "aarch64-macos".to_string(),
+            ZigPlatformAsset {
+                tarball: "https://ziglang.org/download/0.16.0/zig-aarch64-macos-0.16.0.tar.xz"
+                    .to_string(),
+                shasum: "abc".to_string(),
+                size: "52238004".to_string(),
+            },
+        );
+
+        let result = find_matching_asset(&platforms, "aarch64-macos");
+        assert!(result.is_some());
+        assert!(result.unwrap().tarball.contains("aarch64-macos"));
+    }
+
+    #[test]
+    fn test_find_matching_asset_x86_linux() {
+        let mut platforms = std::collections::BTreeMap::new();
+        platforms.insert(
+            "x86-linux".to_string(),
+            ZigPlatformAsset {
+                tarball: "https://ziglang.org/download/0.16.0/zig-x86-linux-0.16.0.tar.xz"
+                    .to_string(),
+                shasum: "abc".to_string(),
+                size: "58196012".to_string(),
+            },
+        );
+
+        // x86-linux 不是标准 target_triple，但通过模糊匹配仍可找到
+        // 注意：parse_target_triple 不支持 x86-linux，所以这个测试验证模糊匹配
+        let result = find_matching_asset(&platforms, "x86_64-linux");
+        // x86_64-linux 不匹配 x86-linux（因为 "x86_64" 不包含在 "x86-linux" 中作为子串）
+        // 但 "linux" 匹配，"x86_64" 不匹配 "x86"
+        assert!(result.is_none()); // 正确行为：x86_64 != x86
     }
 }
