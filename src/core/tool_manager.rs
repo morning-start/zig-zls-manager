@@ -655,3 +655,353 @@ impl InstalledVersion {
         }
     }
 }
+
+// ========== 单元测试 ==========
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::channel::Channel;
+    use crate::infra::path_manager::{InstalledZigVersion, InstalledZlsVersion};
+
+    // ---- ToolKind 测试 ----
+
+    #[test]
+    fn test_tool_kind_equality() {
+        assert_eq!(ToolKind::Zig, ToolKind::Zig);
+        assert_eq!(ToolKind::Zls, ToolKind::Zls);
+        assert_ne!(ToolKind::Zig, ToolKind::Zls);
+    }
+
+    #[test]
+    fn test_tool_kind_copy() {
+        let a = ToolKind::Zig;
+        let b = a; // Copy 语义
+        assert_eq!(a, b);
+    }
+
+    // ---- DownloadAsset 测试 ----
+
+    #[test]
+    fn test_download_asset_creation() {
+        let asset = DownloadAsset {
+            url: "https://example.com/zig.tar.xz".to_string(),
+            filename: "zig.tar.xz".to_string(),
+            shasum: "abc123".to_string(),
+            size: "50 MB".to_string(),
+        };
+        assert_eq!(asset.url, "https://example.com/zig.tar.xz");
+        assert_eq!(asset.filename, "zig.tar.xz");
+        assert_eq!(asset.shasum, "abc123");
+        assert_eq!(asset.size, "50 MB");
+    }
+
+    #[test]
+    fn test_download_asset_serde_roundtrip() {
+        let asset = DownloadAsset {
+            url: "https://example.com/zig.tar.xz".to_string(),
+            filename: "zig.tar.xz".to_string(),
+            shasum: "abc123".to_string(),
+            size: "50 MB".to_string(),
+        };
+        let json = serde_json::to_string(&asset).unwrap();
+        let deserialized: DownloadAsset = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.url, asset.url);
+        assert_eq!(deserialized.filename, asset.filename);
+        assert_eq!(deserialized.shasum, asset.shasum);
+    }
+
+    #[test]
+    fn test_download_asset_empty_shasum() {
+        let asset = DownloadAsset {
+            url: "https://example.com/zls.tar.xz".to_string(),
+            filename: "zls.tar.xz".to_string(),
+            shasum: String::new(),
+            size: "30 MB".to_string(),
+        };
+        assert!(asset.shasum.is_empty());
+    }
+
+    // ---- VersionInfo 测试 ----
+
+    #[test]
+    fn test_version_info_with_asset() {
+        let info = VersionInfo {
+            version: "0.13.0".to_string(),
+            channel: Channel::Stable,
+            asset: Some(DownloadAsset {
+                url: "https://example.com/zig.tar.xz".to_string(),
+                filename: "zig.tar.xz".to_string(),
+                shasum: "abc123".to_string(),
+                size: "50 MB".to_string(),
+            }),
+        };
+        assert_eq!(info.version, "0.13.0");
+        assert_eq!(info.channel, Channel::Stable);
+        assert!(info.asset.is_some());
+    }
+
+    #[test]
+    fn test_version_info_without_asset() {
+        let info = VersionInfo {
+            version: "0.14.0-dev".to_string(),
+            channel: Channel::Nightly,
+            asset: None,
+        };
+        assert!(info.asset.is_none());
+    }
+
+    #[test]
+    fn test_version_info_serde_roundtrip() {
+        let info = VersionInfo {
+            version: "0.13.0".to_string(),
+            channel: Channel::Stable,
+            asset: Some(DownloadAsset {
+                url: "https://example.com/zig.tar.xz".to_string(),
+                filename: "zig.tar.xz".to_string(),
+                shasum: "abc123".to_string(),
+                size: "50 MB".to_string(),
+            }),
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        let deserialized: VersionInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.version, "0.13.0");
+        assert_eq!(deserialized.channel, Channel::Stable);
+        assert!(deserialized.asset.is_some());
+    }
+
+    // ---- InstalledVersion 测试 ----
+
+    fn make_zig_version(version: &str, channel: Channel) -> InstalledVersion {
+        InstalledVersion::Zig(InstalledZigVersion {
+            version: version.to_string(),
+            install_path: std::path::PathBuf::from(format!("/home/.zzm/versions/zig/{version}")),
+            installed_at: "2026-04-25T00:00:00+00:00".to_string(),
+            channel,
+        })
+    }
+
+    fn make_zls_version(version: &str, zig_version: Option<&str>) -> InstalledVersion {
+        InstalledVersion::Zls(InstalledZlsVersion {
+            version: version.to_string(),
+            install_path: std::path::PathBuf::from(format!("/home/.zzm/versions/zls/{version}")),
+            installed_at: "2026-04-25T00:00:00+00:00".to_string(),
+            zig_version: zig_version.map(|s| s.to_string()),
+        })
+    }
+
+    #[test]
+    fn test_installed_version_zig_accessors() {
+        let v = make_zig_version("0.13.0", Channel::Stable);
+        assert_eq!(v.version(), "0.13.0");
+        assert!(v.install_path().to_string_lossy().contains("0.13.0"));
+        assert_eq!(v.channel(), Some(&Channel::Stable));
+        assert_eq!(v.zig_version(), None);
+    }
+
+    #[test]
+    fn test_installed_version_zls_accessors() {
+        let v = make_zls_version("0.13.0", Some("0.13.0"));
+        assert_eq!(v.version(), "0.13.0");
+        assert!(v.install_path().to_string_lossy().contains("0.13.0"));
+        assert_eq!(v.channel(), None);
+        assert_eq!(v.zig_version(), Some("0.13.0"));
+    }
+
+    #[test]
+    fn test_installed_version_zls_no_zig_version() {
+        let v = make_zls_version("0.14.0-dev", None);
+        assert_eq!(v.zig_version(), None);
+    }
+
+    #[test]
+    fn test_installed_version_zig_nightly() {
+        let v = make_zig_version("0.14.0-dev", Channel::Nightly);
+        assert_eq!(v.channel(), Some(&Channel::Nightly));
+    }
+
+    #[test]
+    fn test_installed_version_zig_prerelease() {
+        let v = make_zig_version("0.14.0-rc1", Channel::Prerelease);
+        assert_eq!(v.channel(), Some(&Channel::Prerelease));
+    }
+
+    #[test]
+    fn test_installed_version_serde_roundtrip() {
+        let zig = make_zig_version("0.13.0", Channel::Stable);
+        let json = serde_json::to_string(&zig).unwrap();
+        let deserialized: InstalledVersion = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.version(), "0.13.0");
+
+        let zls = make_zls_version("0.13.0", Some("0.13.0"));
+        let json = serde_json::to_string(&zls).unwrap();
+        let deserialized: InstalledVersion = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.version(), "0.13.0");
+        assert_eq!(deserialized.zig_version(), Some("0.13.0"));
+    }
+
+    #[test]
+    fn test_installed_version_clone() {
+        let v = make_zig_version("0.13.0", Channel::Stable);
+        let cloned = v.clone();
+        assert_eq!(cloned.version(), "0.13.0");
+        assert_eq!(cloned.channel(), Some(&Channel::Stable));
+    }
+
+    // ---- 索引操作辅助方法测试 ----
+
+    fn make_index() -> InstalledIndex {
+        InstalledIndex {
+            zig_versions: vec![InstalledZigVersion {
+                version: "0.13.0".to_string(),
+                install_path: std::path::PathBuf::from("/home/.zzm/versions/zig/0.13.0"),
+                installed_at: "2026-04-25T00:00:00+00:00".to_string(),
+                channel: Channel::Stable,
+            }],
+            zls_versions: vec![InstalledZlsVersion {
+                version: "0.13.0".to_string(),
+                install_path: std::path::PathBuf::from("/home/.zzm/versions/zls/0.13.0"),
+                installed_at: "2026-04-25T00:00:00+00:00".to_string(),
+                zig_version: Some("0.13.0".to_string()),
+            }],
+            active_zig: Some("0.13.0".to_string()),
+            active_zls: Some("0.13.0".to_string()),
+        }
+    }
+
+    /// 模拟 VersionProvider（测试用，不依赖文件系统）
+    #[allow(dead_code)]
+    struct MockVersionProvider;
+
+    impl VersionProvider for MockVersionProvider {
+        async fn get_version_info(&self, _version: &str) -> Result<VersionInfo, ZzmError> {
+            Err(ZzmError::VersionNotFound {
+                version: "mock".to_string(),
+            })
+        }
+
+        async fn list_remote_versions(&self) -> Result<Vec<VersionInfo>, ZzmError> {
+            Ok(vec![])
+        }
+    }
+
+    #[test]
+    fn test_installed_index_default() {
+        let index = InstalledIndex::default();
+        assert!(index.zig_versions.is_empty());
+        assert!(index.zls_versions.is_empty());
+        assert!(index.active_zig.is_none());
+        assert!(index.active_zls.is_none());
+    }
+
+    #[test]
+    fn test_installed_index_serde_roundtrip() {
+        let index = make_index();
+        let json = serde_json::to_string(&index).unwrap();
+        let deserialized: InstalledIndex = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.zig_versions.len(), 1);
+        assert_eq!(deserialized.zls_versions.len(), 1);
+        assert_eq!(deserialized.active_zig, Some("0.13.0".to_string()));
+        assert_eq!(deserialized.active_zls, Some("0.13.0".to_string()));
+    }
+
+    #[test]
+    fn test_installed_index_empty_deserialization() {
+        let json = r#"{}"#;
+        let index: InstalledIndex = serde_json::from_str(json).unwrap();
+        assert!(index.zig_versions.is_empty());
+        assert!(index.zls_versions.is_empty());
+        assert!(index.active_zig.is_none());
+        assert!(index.active_zls.is_none());
+    }
+
+    #[test]
+    fn test_installed_zig_version_channel_serde() {
+        let v = InstalledZigVersion {
+            version: "0.14.0-dev".to_string(),
+            install_path: std::path::PathBuf::from("/home/.zzm/versions/zig/0.14.0-dev"),
+            installed_at: "2026-04-25T00:00:00+00:00".to_string(),
+            channel: Channel::Nightly,
+        };
+        let json = serde_json::to_string(&v).unwrap();
+        let deserialized: InstalledZigVersion = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.channel, Channel::Nightly);
+    }
+
+    #[test]
+    fn test_installed_zls_version_with_zig_version() {
+        let v = InstalledZlsVersion {
+            version: "0.13.0".to_string(),
+            install_path: std::path::PathBuf::from("/home/.zzm/versions/zls/0.13.0"),
+            installed_at: "2026-04-25T00:00:00+00:00".to_string(),
+            zig_version: Some("0.13.0".to_string()),
+        };
+        let json = serde_json::to_string(&v).unwrap();
+        let deserialized: InstalledZlsVersion = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.zig_version, Some("0.13.0".to_string()));
+    }
+
+    #[test]
+    fn test_installed_zls_version_without_zig_version() {
+        let v = InstalledZlsVersion {
+            version: "0.14.0-dev".to_string(),
+            install_path: std::path::PathBuf::from("/home/.zzm/versions/zls/0.14.0-dev"),
+            installed_at: "2026-04-25T00:00:00+00:00".to_string(),
+            zig_version: None,
+        };
+        let json = serde_json::to_string(&v).unwrap();
+        let deserialized: InstalledZlsVersion = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.zig_version.is_none());
+    }
+
+    // ---- 流式校验测试 ----
+
+    #[test]
+    fn test_verify_checksum_streaming_with_temp_file() {
+        use std::io::Write;
+        let temp_dir = std::env::temp_dir().join("zzm_test_streaming");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let file_path = temp_dir.join("test_checksum.bin");
+
+        let data = b"hello world for streaming test";
+        let mut file = std::fs::File::create(&file_path).unwrap();
+        file.write_all(data).unwrap();
+        drop(file);
+
+        // 用内存校验得到期望值
+        let expected = crate::infra::checksum::calculate_sha256(data);
+        let result = crate::infra::checksum::verify_checksum_streaming(&file_path, &expected);
+        assert!(result.unwrap());
+
+        // 清理
+        let _ = std::fs::remove_file(&file_path);
+    }
+
+    #[test]
+    fn test_verify_checksum_streaming_mismatch() {
+        use std::io::Write;
+        let temp_dir = std::env::temp_dir().join("zzm_test_streaming_mismatch");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let file_path = temp_dir.join("test_mismatch.bin");
+
+        let data = b"some data";
+        let mut file = std::fs::File::create(&file_path).unwrap();
+        file.write_all(data).unwrap();
+        drop(file);
+
+        let result =
+            crate::infra::checksum::verify_checksum_streaming(&file_path, "0000deadbeef");
+        assert!(!result.unwrap());
+
+        let _ = std::fs::remove_file(&file_path);
+    }
+
+    #[test]
+    fn test_verify_checksum_streaming_file_not_found() {
+        let result = crate::infra::checksum::verify_checksum_streaming(
+            std::path::Path::new("/nonexistent/file.bin"),
+            "abc",
+        );
+        assert!(result.is_err());
+    }
+}
