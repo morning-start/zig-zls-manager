@@ -292,3 +292,87 @@ fn clean_jsonc(content: &str) -> String {
         .join("\n")
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_clean_jsonc() {
+        let content = r#"{
+    "zig.path": "/path/to/zig", // 这是注释
+    "zig.zls.path": "/path/to/zls"
+    // 另一行注释
+}"#;
+
+        let cleaned = clean_jsonc(content);
+        assert!(!cleaned.contains("//"));
+        assert!(cleaned.contains("/path/to/zig"));
+        assert!(cleaned.contains("/path/to/zls"));
+    }
+
+    #[test]
+    fn test_clean_jsonc_with_strings() {
+        let content = r#"{
+    "description": "This is a // string with comment",
+    "zig.path": "/path/to/zig" // real comment
+}"#;
+
+        let cleaned = clean_jsonc(content);
+        assert!(cleaned.contains("This is a // string with comment"));
+        assert!(!cleaned.contains("real comment"));
+    }
+
+    #[test]
+    fn test_vs_code_settings_serde() {
+        let settings = VsCodeSettings {
+            zig_path: Some("/path/to/zig".to_string()),
+            zls_path: Some("/path/to/zls".to_string()),
+            other: serde_json::Map::new(),
+        };
+
+        let json = serde_json::to_string_pretty(&settings).unwrap();
+        assert!(json.contains("zig.path"));
+        assert!(json.contains("zig.zls.path"));
+        assert!(json.contains("/path/to/zig"));
+        assert!(json.contains("/path/to/zls"));
+
+        let parsed: VsCodeSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.zig_path, Some("/path/to/zig".to_string()));
+        assert_eq!(parsed.zls_path, Some("/path/to/zls".to_string()));
+    }
+
+    #[test]
+    fn test_vs_code_settings_default() {
+        let settings = VsCodeSettings::default();
+        assert!(settings.zig_path.is_none());
+        assert!(settings.zls_path.is_none());
+        assert!(settings.other.is_empty());
+    }
+
+    #[test]
+    fn test_clean_jsonc_empty_lines() {
+        let content = r#"{
+    "key": "value"
+
+    // comment
+}"#;
+
+        let cleaned = clean_jsonc(content);
+        assert!(!cleaned.contains("// comment"));
+    }
+
+    #[test]
+    fn test_clean_jsonc_escaped_quotes() {
+        let content = r#"{
+    "key": "value with \"escaped\" quotes", // comment
+    "other": "value"
+}"#;
+
+        let cleaned = clean_jsonc(content);
+        assert!(cleaned.contains("value with \\\"escaped\\\" quotes"));
+        assert!(!cleaned.contains("comment"));
+    }
+}
+

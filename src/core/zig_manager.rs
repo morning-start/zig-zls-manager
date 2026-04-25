@@ -300,11 +300,91 @@ impl ZigManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::infra::path_manager::InstalledZigVersion;
+    use crate::utils::version::Version;
+    use tempfile::TempDir;
+    use std::fs;
 
     #[test]
     fn test_zig_manager_creation() {
         let platform = crate::platform::detect_platform();
         let manager = ZigManager::new(platform);
         assert!(manager.is_ok());
+    }
+
+    #[test]
+    fn test_resolve_version() {
+        // 测试标准版本解析
+        let version: Version = "0.13.0".parse().unwrap();
+        assert_eq!(version.major, 0);
+        assert_eq!(version.minor, 13);
+        assert_eq!(version.patch, 0);
+
+        // 测试简写版本
+        let resolved = resolve_version("0.13").unwrap();
+        assert_eq!(resolved, "0.13.0");
+
+        // 测试master版本
+        let resolved = resolve_version("master").unwrap();
+        assert_eq!(resolved, "master");
+
+        // 测试stable版本
+        let resolved = resolve_version("stable").unwrap();
+        assert_eq!(resolved, "stable");
+    }
+
+    #[test]
+    fn test_reorganize_extracted_files_same_dir() {
+        let temp_dir = TempDir::new().unwrap();
+        let version_dir = temp_dir.path().join("0.13.0");
+        fs::create_dir_all(&version_dir).unwrap();
+
+        let platform = crate::platform::detect_platform();
+        let manager = ZigManager::new(platform).unwrap();
+
+        // 测试当 extracted_root 和 version_dir 相同时
+        let result = manager.reorganize_extracted_files(&version_dir, &version_dir, "0.13.0");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_installed_zig_version_creation() {
+        let temp_dir = TempDir::new().unwrap();
+        let version = InstalledZigVersion {
+            version: "0.13.0".to_string(),
+            install_path: temp_dir.path().to_path_buf(),
+            installed_at: "2024-06-06T10:00:00Z".to_string(),
+            channel: "stable".to_string(),
+        };
+
+        assert_eq!(version.version, "0.13.0");
+        assert_eq!(version.channel, "stable");
+        assert_eq!(version.installed_at, "2024-06-06T10:00:00Z");
+    }
+
+    #[test]
+    fn test_resolve_version_edge_cases() {
+        // 测试点号处理
+        let resolved = resolve_version(".13").unwrap();
+        assert_eq!(resolved, "0.13.0");
+
+        let resolved = resolve_version("0.").unwrap();
+        assert_eq!(resolved, "0.0.0");
+
+        // 测试无效版本
+        let result = resolve_version("invalid");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_version_comparison() {
+        let v1: Version = "0.13.0".parse().unwrap();
+        let v2: Version = "0.13.1".parse().unwrap();
+        let v3: Version = "0.12.0".parse().unwrap();
+        let v4: Version = "1.0.0".parse().unwrap();
+
+        assert!(v1 < v2);
+        assert!(v3 < v1);
+        assert!(v1 < v4);
     }
 }
