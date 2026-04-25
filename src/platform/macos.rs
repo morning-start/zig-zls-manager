@@ -16,7 +16,7 @@ impl PlatformTrait for MacOSPlatform {
         "macos"
     }
 
-    fn default_install_dir(&self) -> PathBuf {
+    fn platform_default_dir(&self) -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("/"))
             .join(".zzm")
@@ -74,7 +74,7 @@ impl PlatformTrait for MacOSPlatform {
     fn name(&self) -> &'static str {
         "macos"
     }
-    fn default_install_dir(&self) -> PathBuf {
+    fn platform_default_dir(&self) -> PathBuf {
         PathBuf::from("/.zzm")
     }
     fn create_symlink(&self, _original: &Path, _link: &Path) -> Result<(), ZzmError> {

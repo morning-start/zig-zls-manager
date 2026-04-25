@@ -15,7 +15,7 @@ impl PlatformTrait for WindowsPlatform {
         "windows"
     }
 
-    fn default_install_dir(&self) -> PathBuf {
+    fn platform_default_dir(&self) -> PathBuf {
         dirs::data_local_dir()
             .unwrap_or_else(|| PathBuf::from(r"C:\Users\Default"))
             .join("zzm")

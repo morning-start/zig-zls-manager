@@ -16,7 +16,7 @@ impl PlatformTrait for LinuxPlatform {
         "linux"
     }
 
-    fn default_install_dir(&self) -> PathBuf {
+    fn platform_default_dir(&self) -> PathBuf {
         if let Ok(xdg_data) = std::env::var("XDG_DATA_HOME") {
             PathBuf::from(xdg_data).join("zzm")
         } else {
@@ -78,7 +78,7 @@ impl PlatformTrait for LinuxPlatform {
     fn name(&self) -> &'static str {
         "linux"
     }
-    fn default_install_dir(&self) -> PathBuf {
+    fn platform_default_dir(&self) -> PathBuf {
         PathBuf::from("/.zzm")
     }
     fn create_symlink(&self, _original: &Path, _link: &Path) -> Result<(), ZzmError> {

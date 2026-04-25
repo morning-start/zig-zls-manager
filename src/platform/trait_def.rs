@@ -2,6 +2,13 @@ use std::path::{Path, PathBuf};
 
 use crate::utils::error::ZzmError;
 
+/// 配置文件部分结构体（仅读取 install_dir，避免循环依赖）
+#[derive(Debug, serde::Deserialize)]
+struct ZZMConfigPartial {
+    #[serde(default)]
+    install_dir: Option<String>,
+}
+
 /// 平台抽象 trait，封装平台特定操作
 #[allow(dead_code)] // trait 部分方法预留: shell_config_files, is_admin
 pub trait PlatformTrait: Send + Sync {
@@ -10,8 +17,40 @@ pub trait PlatformTrait: Send + Sync {
     /// 获取平台名称
     fn name(&self) -> &'static str;
 
-    /// 获取默认安装目录
-    fn default_install_dir(&self) -> PathBuf;
+    /// 获取平台特定的默认安装目录（不考虑环境变量覆盖）
+    ///
+    /// 各平台实现此方法返回各自的默认路径：
+    /// - Windows: `%LOCALAPPDATA%\zzm`
+    /// - macOS: `~/.zzm`
+    /// - Linux: `$XDG_DATA_HOME/zzm` 或 `~/.zzm`
+    fn platform_default_dir(&self) -> PathBuf;
+
+    /// 获取安装根目录（支持环境变量覆盖）
+    ///
+    /// 优先级：`ZZM_ROOT` 环境变量 > 配置文件 `install_dir` > 平台默认路径
+    fn default_install_dir(&self) -> PathBuf {
+        // 优先级 1: ZZM_ROOT 环境变量
+        if let Ok(root) = std::env::var("ZZM_ROOT")
+            && !root.is_empty()
+        {
+            return PathBuf::from(root);
+        }
+
+        // 优先级 2: 配置文件中的 install_dir
+        // 延迟加载配置，避免循环依赖：只有在配置文件已存在时才读取
+        let config_path = self.platform_default_dir().join("config.toml");
+        if config_path.exists()
+            && let Ok(content) = std::fs::read_to_string(&config_path)
+            && let Ok(config) = toml::from_str::<ZZMConfigPartial>(&content)
+            && let Some(ref install_dir) = config.install_dir
+            && !install_dir.is_empty()
+        {
+            return PathBuf::from(install_dir);
+        }
+
+        // 优先级 3: 平台默认路径
+        self.platform_default_dir()
+    }
 
     /// 创建符号链接（跨平台适配）
     fn create_symlink(&self, original: &Path, link: &Path) -> Result<(), ZzmError>;
@@ -22,7 +61,7 @@ pub trait PlatformTrait: Send + Sync {
     /// 获取 shell 配置文件路径列表
     fn shell_config_files(&self) -> Vec<PathBuf>;
 
-    /// 获取 PATH 环境变量中的 zzm bin 路径
+    /// 获取 bin 目录
     fn bin_dir(&self) -> PathBuf {
         self.default_install_dir().join("bin")
     }
@@ -30,6 +69,13 @@ pub trait PlatformTrait: Send + Sync {
     /// 获取版本存储目录
     fn versions_dir(&self) -> PathBuf {
         self.default_install_dir().join("versions")
+    }
+
+    /// 获取 default 目录（指向当前版本的符号链接）
+    ///
+    /// 用法: 设置 ZIG_HOME=<zzm_root>/default 或将 <zzm_root>/default/bin 加入 PATH
+    fn default_dir(&self) -> PathBuf {
+        self.default_install_dir().join("default")
     }
 
     /// 获取缓存目录
