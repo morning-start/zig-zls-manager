@@ -117,7 +117,17 @@ pub trait PlatformTrait: Send + Sync {
         if let Ok(path_var) = std::env::var("PATH") {
             let bin_dir = self.bin_dir();
             let separator = if cfg!(windows) { ';' } else { ':' };
-            path_var.split(separator).any(|p| bin_dir == Path::new(p))
+            path_var.split(separator).any(|p| {
+                let p_path = Path::new(p.trim());
+                if cfg!(windows) {
+                    // Windows 路径比较不区分大小写，且忽略尾部反斜杠
+                    let p_str = p_path.to_string_lossy().trim_end_matches('\\').to_lowercase();
+                    let bin_str = bin_dir.to_string_lossy().trim_end_matches('\\').to_lowercase();
+                    p_str == bin_str
+                } else {
+                    p_path == bin_dir
+                }
+            })
         } else {
             false
         }
