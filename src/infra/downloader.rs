@@ -17,6 +17,9 @@ const DEFAULT_READ_TIMEOUT: Duration = Duration::from_secs(120);
 /// 默认最大重试次数
 const DEFAULT_MAX_RETRIES: u32 = 3;
 
+/// 部分下载文件后缀
+const PARTIAL_SUFFIX: &str = ".part";
+
 /// 下载管理器
 pub struct Downloader {
     client: Client,
@@ -39,6 +42,20 @@ impl Downloader {
         })
     }
 
+    /// 生成部分下载文件路径
+    ///
+    /// 在目标文件名后追加 `.part` 后缀，例如：
+    /// - `zig-0.13.0.tar.xz` → `zig-0.13.0.tar.xz.part`
+    /// - `zls.zip` → `zls.zip.part`
+    fn part_file_path(dest: &Path) -> PathBuf {
+        let mut name = dest
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        name.push_str(PARTIAL_SUFFIX);
+        dest.with_file_name(name)
+    }
+
     /// 设置最大重试次数
     #[allow(dead_code)] // 预留: 配置化重试策略
     pub fn with_max_retries(mut self, retries: u32) -> Self {
@@ -46,7 +63,7 @@ impl Downloader {
         self
     }
 
-    /// 下载文件到指定路径（带进度条和重试）
+    /// 下载文件到指定路径（带进度条、重试和续传）
     pub async fn download_file(&self, url: &str, dest: &Path) -> Result<PathBuf, ZzmError> {
         tracing::debug!("开始下载: {} -> {}", url, dest.display());
 
@@ -80,19 +97,45 @@ impl Downloader {
         Err(last_error.unwrap())
     }
 
-    /// 单次下载尝试（带进度条显示）
+    /// 单次下载尝试（带进度条显示和续传支持）
+    ///
+    /// 续传逻辑：
+    /// 1. 检查是否存在 `.part` 部分文件
+    /// 2. 如果存在，获取已下载字节数，发送 Range 请求续传
+    /// 3. 服务器不支持 Range 时，回退到完整下载
+    /// 4. 下载完成后，将 `.part` 文件重命名为目标文件
     async fn download_single(&self, url: &str, dest: &Path) -> Result<PathBuf, ZzmError> {
-        let response = self
-            .client
-            .get(url)
-            .send()
-            .await
-            .map_err(|e| ZzmError::DownloadFailed {
-                url: url.to_string(),
-                reason: e.to_string(),
-            })?;
+        let part_path = Self::part_file_path(dest);
 
-        if !response.status().is_success() {
+        // 检查部分文件，确定续传起始位置
+        let mut downloaded: u64 = 0;
+        if part_path.exists()
+            && let Ok(metadata) = tokio::fs::metadata(&part_path).await
+        {
+            downloaded = metadata.len();
+            if downloaded > 0 {
+                tracing::info!(
+                    "发现部分下载文件: {} (已下载 {} 字节)，尝试续传",
+                    part_path.display(),
+                    downloaded
+                );
+            }
+        }
+
+        // 构建请求，如果有已下载部分则添加 Range 头
+        let request = self.client.get(url);
+        let request = if downloaded > 0 {
+            request.header("Range", format!("bytes={downloaded}-"))
+        } else {
+            request
+        };
+
+        let response = request.send().await.map_err(|e| ZzmError::DownloadFailed {
+            url: url.to_string(),
+            reason: e.to_string(),
+        })?;
+
+        if !response.status().is_success() && response.status().as_u16() != 206 {
             let status = response.status().as_u16();
             let message = response.text().await.unwrap_or_default();
             return Err(ZzmError::HttpError {
@@ -101,7 +144,29 @@ impl Downloader {
             });
         }
 
-        let total_size = response.content_length();
+        // 判断是否为续传响应（HTTP 206 Partial Content）
+        let is_resume = response.status().as_u16() == 206;
+
+        let total_size = if is_resume {
+            // 续传时，从 Content-Range 头获取总大小
+            // 格式: bytes start-end/total
+            response
+                .headers()
+                .get("content-range")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.split('/').next_back())
+                .and_then(|v| v.parse::<u64>().ok())
+        } else {
+            response.content_length()
+        };
+
+        // 如果服务器返回 200 但我们发了 Range 请求，说明服务器不支持续传
+        // 需要重新从头下载
+        if downloaded > 0 && !is_resume {
+            tracing::info!("服务器不支持续传，重新完整下载");
+            downloaded = 0;
+        }
+
         let filename = dest
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
@@ -113,14 +178,25 @@ impl Downloader {
             None => create_download_bar(&filename, 0),
         };
 
-        // 创建临时文件（写入完成后再重命名为目标文件）
-        let temp_path = dest.with_extension("tmp");
+        // 如果是续传，进度条从已下载位置开始
+        if is_resume && downloaded > 0 {
+            pb.set_position(downloaded);
+        }
 
-        let mut file = tokio::fs::File::create(&temp_path)
-            .await
-            .map_err(ZzmError::Io)?;
+        // 打开部分文件：续传时追加，否则创建新文件
+        let mut file = if is_resume && downloaded > 0 {
+            tokio::fs::OpenOptions::new()
+                .append(true)
+                .open(&part_path)
+                .await
+                .map_err(ZzmError::Io)?
+        } else {
+            // 非续传或服务器不支持续传，创建新文件
+            tokio::fs::File::create(&part_path)
+                .await
+                .map_err(ZzmError::Io)?
+        };
 
-        let mut downloaded: u64 = 0;
         let mut stream = response.bytes_stream();
 
         while let Some(chunk_result) = stream.next().await {
@@ -143,8 +219,12 @@ impl Downloader {
         file.flush().await.map_err(ZzmError::Io)?;
         drop(file);
 
-        // 原子重命名：临时文件 -> 目标文件
-        tokio::fs::rename(&temp_path, dest)
+        // 下载完成：将部分文件重命名为目标文件
+        // 如果目标文件已存在（如上次完整下载但重命名失败），先删除
+        if dest.exists() {
+            let _ = tokio::fs::remove_file(dest).await;
+        }
+        tokio::fs::rename(&part_path, dest)
             .await
             .map_err(ZzmError::Io)?;
 
@@ -157,7 +237,8 @@ impl Downloader {
 
     /// 下载文件到缓存目录
     ///
-    /// 如果文件已存在，直接返回路径而不重新下载
+    /// 如果完整文件已存在，直接返回路径而不重新下载。
+    /// 如果存在 `.part` 部分文件，则尝试续传。
     pub async fn download_to_cache(
         &self,
         url: &str,
@@ -166,7 +247,7 @@ impl Downloader {
     ) -> Result<PathBuf, ZzmError> {
         let dest = cache_dir.join(filename);
 
-        // 如果缓存中已存在该文件，直接返回
+        // 如果缓存中已存在完整文件，直接返回
         if dest.exists() {
             tracing::debug!("文件已存在于缓存: {}", dest.display());
             return Ok(dest);
@@ -177,6 +258,18 @@ impl Downloader {
             tokio::fs::create_dir_all(cache_dir)
                 .await
                 .map_err(ZzmError::Io)?;
+        }
+
+        // 检查是否有部分下载文件可续传
+        let part_path = Self::part_file_path(&dest);
+        if part_path.exists()
+            && let Ok(metadata) = std::fs::metadata(&part_path)
+        {
+            tracing::info!(
+                "发现未完成的下载: {} (已下载 {} 字节)，将尝试续传",
+                part_path.display(),
+                metadata.len()
+            );
         }
 
         self.download_file(url, &dest).await
@@ -223,5 +316,33 @@ mod tests {
     fn test_downloader_zero_retries() {
         let downloader = Downloader::new().unwrap().with_max_retries(0);
         assert_eq!(downloader.max_retries, 0);
+    }
+
+    #[test]
+    fn test_partial_suffix_constant() {
+        assert_eq!(PARTIAL_SUFFIX, ".part");
+    }
+
+    #[test]
+    fn test_part_path_generation() {
+        // 测试 .part 文件路径生成逻辑
+        let dest = PathBuf::from("/cache/zig-0.13.0.tar.xz");
+        let part_path = Downloader::part_file_path(&dest);
+        assert_eq!(part_path, PathBuf::from("/cache/zig-0.13.0.tar.xz.part"));
+
+        // 无扩展名的情况
+        let dest2 = PathBuf::from("/cache/zig-binary");
+        let part_path2 = Downloader::part_file_path(&dest2);
+        assert_eq!(part_path2, PathBuf::from("/cache/zig-binary.part"));
+    }
+
+    #[test]
+    fn test_part_path_zip() {
+        let dest = PathBuf::from("/cache/zig-windows-x86_64-0.13.0.zip");
+        let part_path = Downloader::part_file_path(&dest);
+        assert_eq!(
+            part_path,
+            PathBuf::from("/cache/zig-windows-x86_64-0.13.0.zip.part")
+        );
     }
 }

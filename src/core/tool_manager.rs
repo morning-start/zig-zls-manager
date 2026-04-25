@@ -989,8 +989,7 @@ mod tests {
         file.write_all(data).unwrap();
         drop(file);
 
-        let result =
-            crate::infra::checksum::verify_checksum_streaming(&file_path, "0000deadbeef");
+        let result = crate::infra::checksum::verify_checksum_streaming(&file_path, "0000deadbeef");
         assert!(!result.unwrap());
 
         let _ = std::fs::remove_file(&file_path);

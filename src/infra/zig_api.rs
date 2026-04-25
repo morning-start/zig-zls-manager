@@ -280,7 +280,13 @@ impl ZigApiClient {
 
 /// 已知的非平台键（ZigVersionEntry 的显式字段）
 const KNOWN_NON_PLATFORM_KEYS: &[&str] = &[
-    "date", "version", "docs", "stdDocs", "notes", "src", "bootstrap",
+    "date",
+    "version",
+    "docs",
+    "stdDocs",
+    "notes",
+    "src",
+    "bootstrap",
 ];
 
 /// 判断一个键是否为平台标识键
@@ -296,14 +302,7 @@ fn is_platform_key(key: &str) -> bool {
     }
 
     // 平台键必须包含至少一个已知标识符
-    let known_os = [
-        "windows",
-        "macos",
-        "linux",
-        "freebsd",
-        "netbsd",
-        "openbsd",
-    ];
+    let known_os = ["windows", "macos", "linux", "freebsd", "netbsd", "openbsd"];
     let known_arch = [
         "x86_64",
         "aarch64",
@@ -322,7 +321,9 @@ fn is_platform_key(key: &str) -> bool {
 
     let key_lower = key.to_lowercase();
     let has_os = known_os.iter().any(|os| key_lower.contains(os));
-    let has_arch = known_arch.iter().any(|arch| key_lower.contains(arch.to_lowercase().as_str()));
+    let has_arch = known_arch
+        .iter()
+        .any(|arch| key_lower.contains(arch.to_lowercase().as_str()));
 
     has_os && has_arch
 }
@@ -367,10 +368,7 @@ fn find_matching_asset(
 ///   -> "zig-x86_64-windows-0.16.0.zip"
 #[allow(dead_code)]
 fn extract_filename_from_url(url: &str) -> String {
-    url.rsplit('/')
-        .next()
-        .unwrap_or("zig-unknown")
-        .to_string()
+    url.rsplit('/').next().unwrap_or("zig-unknown").to_string()
 }
 
 /// 解析文件大小字符串为字节数
@@ -654,7 +652,10 @@ mod tests {
         }"#;
 
         let asset: ZigPlatformAsset = serde_json::from_str(json).unwrap();
-        assert_eq!(asset.shasum, "68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e");
+        assert_eq!(
+            asset.shasum,
+            "68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e"
+        );
         assert_eq!(asset.size, "97217739");
         assert!(asset.tarball.contains("0.16.0"));
     }
@@ -688,7 +689,10 @@ mod tests {
         assert_eq!(entry.version, "0.16.0");
         assert_eq!(entry.date, "2026-04-13");
         assert_eq!(entry.docs, "https://ziglang.org/documentation/0.16.0/");
-        assert_eq!(entry.std_docs, "https://ziglang.org/documentation/0.16.0/std/");
+        assert_eq!(
+            entry.std_docs,
+            "https://ziglang.org/documentation/0.16.0/std/"
+        );
         assert!(entry.src.is_some());
         // platforms 应该包含 x86_64-macos 和 x86_64-windows（不含 src，因为 src 是显式字段）
         // 注意：由于 serde flatten 的行为，src 也会出现在 platforms map 中
