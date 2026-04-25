@@ -4,8 +4,10 @@
 
 - **版本**: v1.0.0
 - **创建日期**: 2026-04-24
-- **当前阶段**: Phase 1 - MVP (v0.1.0) — Sprint 0-4 已完成，进入 Sprint 5
+- **当前阶段**: Phase 1 - MVP (v0.1.0) — Sprint 0-5 核心功能完成，测试与发布准备中
 - **关联文档**: [ROADMAP.md](./ROADMAP.md), [architecture.md](./architecture.md)
+- **编译状态**: ✅ cargo check 通过（22 warnings，均为 dead code）
+- **测试状态**: ❌ 50/51 通过（1 个失败：test_resolve_version_edge_cases）
 
 ---
 
@@ -269,7 +271,7 @@
   - 实现 `zzm ide remove` 移除 VS Code 中的 Zig/ZLS 配置
 
 - [x] **[P0] T-021: 实现 `zzm ide path` 命令** ✅ *已完成*
-  - 输出当前 zig 和 zls 的绝对路径
+  - 输出当前 zig 和 zls 的绝对路径  
   - 未安装时显示 (未安装) 提示
   - 已集成到 IdeManager::zig_binary_path / zls_binary_path
 
@@ -310,14 +312,17 @@
 
 - [ ] **[P0] T-024: 补充单元测试**
   目标覆盖率 > 70%
-  - 版本解析逻辑测试（边界情况）
+  - 当前已有 51 个单元测试（50 通过 / 1 失败）
+  - ❌ **BUG**: `test_resolve_version_edge_cases` 失败，`"0."` 输入未被正确拒绝
+  - 版本解析逻辑测试（边界情况）— 需修复边界解析 bug
   - API 客户端 Mock 测试
   - 文件路径计算测试
   - 配置合并逻辑测试
   - 兼容性规则匹配测试
+  - 补充 ZlsManager / IdeManager / ConfigManager 测试
 
 - [ ] **[P0] T-025: 编写集成测试**
-  文件: `tests/integration/`
+  文件: `tests/integration/`（当前目录为空，无任何测试文件）
   - `test_install_flow.rs`: 完整安装流程测试
   - `test_switch_flow.rs`: 版本切换流程测试
   - `test_ide_integration.rs`: IDE 配置生成测试
@@ -337,8 +342,8 @@
 
 **验收标准**:
 - ✅ `zzm config list` 显示所有配置项
-- [ ] `cargo test` 通过，覆盖率 > 70%
-- [ ] 集成测试覆盖主要用户场景
+- ❌ `cargo test` 通过（1 个测试失败待修复），目标覆盖率 > 70%
+- ❌ 集成测试覆盖主要用户场景（目录为空）
 - ✅ `zzm info` 输出清晰的环境信息
 
 ---
@@ -436,6 +441,34 @@ T-028 (CI/CD) → T-029-T-031 (文档) → T-033 (发布)
 ```
 
 **当前进度**: Sprint 0-4 全部完成，Sprint 5 大部分完成（T-023/T-026/T-027），剩余 T-024/T-025
+
+### ⚠️ 已知问题汇总（2026-04-25 审查）
+
+#### 编译警告（22 个 dead code warnings）
+- `src/core/project.rs`: `ProjectManager` 空壳结构体未使用
+- `src/utils/error.rs`: 6 个错误变体未使用（`DownloadInterrupted`, `PermissionDenied`, `IncompatibleVersions`, `CacheDirCreationFailed`, `InsufficientDiskSpace`, `Cancelled`）
+- `src/utils/error.rs`: `Result` 类型别名未使用
+- `src/utils/version.rs`: `new`, `with_pre`, `is_stable` 未使用
+- `src/infra/zig_api.rs`: `get_latest_stable`, `get_master`, `parse_size_to_bytes` 未使用
+- `src/infra/zls_api.rs`: `get_latest_stable` 未使用
+- `src/infra/downloader.rs`: `cache_dir`, `with_max_retries` 未使用
+- `src/infra/path_manager.rs`: `install_dir`, `read_current_zig_version` 未使用
+- `src/core/ide.rs`: `remove_vscode_config` 未使用
+- `src/core/config.rs`: `reset` 未使用
+- `src/core/compatibility.rs`: `check_and_warn` 未使用
+- `src/output/progress.rs`: `DownloadProgress`, `create_spinner` 未使用
+- `src/output/json_output.rs`: `print_json_error` 未使用
+- `src/output/table_output.rs`: `VersionRow`, `render_version_table` 未使用
+- `src/platform/trait_def.rs`: `shell_config_files`, `is_admin` 未使用
+
+#### 测试失败（1 个）
+- `core::zig_manager::tests::test_resolve_version_edge_cases` — `"0."` 输入未被正确拒绝
+
+#### 缺失项
+- `tests/integration/` 目录为空，无集成测试
+- 无 CI/CD 配置（`.github/workflows/` 不存在）
+- 无 `CHANGELOG.md`
+- `ROADMAP.md` Phase 1 的 checklist 状态过时（大量 `[ ]` 实际已 `[x]`）
 
 ---
 
@@ -543,6 +576,9 @@ bugfix/progress-bar-crash
 - [ ] #008: ZlsManager::find_and_link_zls_binary 中未使用的 _binary_name 变量
 - [ ] #009: zig_manager::use_version 中 _installed 变量未使用（确认版本是否存在但不读取信息）
 - [ ] #010: dead code 警告（project.rs 空壳模块，将在后续 Sprint 消除）
+- [ ] #011: 版本解析边界 bug — `"0."` 输入未返回 InvalidVersion 错误（导致测试失败）
+- [ ] #012: 22 个 dead code warnings — 为后续功能预留的代码（Phase 2 需要），应使用 `#[allow(dead_code)]` 或条件编译
+- [ ] #013: ROADMAP.md Phase 1 checklist 状态过时 — 大量已完成项仍标记为 `[ ]`
 
 ---
 
@@ -561,6 +597,7 @@ bugfix/progress-bar-crash
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
+| 2026-04-25 | v1.3.0 | 项目审查：更新编译/测试状态，新增 #011-#013 已知问题，标注测试失败和 dead code 详情 |
 | 2026-04-25 | v1.2.0 | 更新 Sprint 0-4 全部完成，Sprint 5 大部分完成（T-020~T-023），剩余 T-024/T-025 |
 | 2026-04-25 | v1.1.0 | 更新 Sprint 0-3 全部完成，Sprint 4 部分完成（T-018/T-019），Sprint 5 部分完成（T-026/T-027） |
 | 2026-04-24 | v1.0.0 | 初始版本，建立 Phase 1 任务清单 |

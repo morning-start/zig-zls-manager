@@ -52,7 +52,7 @@
 
 **预计周期**: 8-10 周（2026年5月-7月）
 
-**状态**: 🔴 未开始
+**状态**: 🟡 进行中（Sprint 0-5 核心功能完成，测试与发布准备中）
 
 ### 1.1 核心功能范围
 
@@ -66,19 +66,19 @@
 - [x] 日志系统配置（tracing）
 
 ##### B. CLI 框架
-- [ ] 命令行参数解析（clap derive）
-- [ ] 全局选项支持（--json, --verbose, --no-color）
-- [ ] 子命令路由系统
-- [ ] 帮助信息生成
-- [ ] 版本信息显示
+- [x] 命令行参数解析（clap derive）
+- [x] 全局选项支持（--json, --verbose, --no-color）
+- [x] 子命令路由系统
+- [x] 帮助信息生成
+- [x] 版本信息显示
 
 ##### C. 外部 API 集成
-- [ ] Zig JSON API 客户端
+- [x] Zig JSON API 客户端
   - GET https://ziglang.org/download/index.json
   - 数据结构定义（serde Deserialize）
   - 平台自动检测与匹配
   - 本地缓存机制（TTL: 1小时）
-- [ ] ZLS GitHub Releases API 客户端
+- [x] ZLS GitHub Releases API 客户端
   - GET https://api.github.com/repos/zigtools/zls/releases
   - Release/Asset 数据结构定义
   - 分页处理
@@ -86,99 +86,99 @@
   - 速率限制处理
 
 ##### D. Zig 版本管理（核心）
-- [ ] `zzm install <version>` - 安装指定版本
+- [x] `zzm install <version>` - 安装指定版本
   - 版本号解析（完整格式、简写如 "0.13" → "0.13.0"）
   - 远端版本列表查询
   - 文件下载（带进度条）
   - SHA256 校验和验证
   - 解压到 ~/.zzm/versions/zig/<version>/
   - 创建符号链接/shim 到 ~/.zzm/bin/zig
-- [ ] `zzm uninstall <version>` - 卸载版本
+- [x] `zzm uninstall <version>` - 卸载版本
   - 删除版本目录
   - 清理符号链接（如果是当前活动版本）
   - 更新 installed.json 元数据
-- [ ] `zzm list` - 列出版本
+- [x] `zzm list` - 列出版本
   - `--installed`: 已安装版本
   - `--remote`: 远端可用版本
   - 表格输出（使用 tabled）
   - `--json`: JSON 格式输出
-- [ ] `zzm use <version>` - 切换版本
+- [x] `zzm use <version>` - 切换版本
   - 更新 ~/.zzm/bin/zig 符号链接
   - `--global` (默认): 用户全局切换
-  - `--project`: 项目级切换（写入 .zzmrc）
+  - `--project`: 项目级切换（写入 .zzmrc）— Phase 2
   - `--default`: 设为默认版本
-- [ ] `zzm current` - 显示当前版本
+- [x] `zzm current` - 显示当前版本
   - 当前激活的 Zig 版本
   - 安装路径
   - 构建日期（如果可用）
 
 ##### E. ZLS 基础管理（附属模式）
-- [ ] `zzm install <version> --with-zls`
+- [x] `zzm install <version> --with-zls`
   - 自动查找匹配的 ZLS 版本
   - 并发下载 Zig + ZLS
   - 自动配置兼容性
-- [ ] `zzm zls current` - 显示当前 ZLS 版本
-- [ ] `zzm zls list --installed` - 已安装的 ZLS
+- [x] `zzm zls current` - 显示当前 ZLS 版本
+- [x] `zzm zls list --installed` - 已安装的 ZLS
 
 ##### F. 基础 IDE 集成
-- [ ] VS Code 支持
+- [x] VS Code 支持
   - 生成 `.vscode/settings.json`
   - 配置 zig.path 和 zig.zls.path
-- [ ] `zzm ide path` - 输出当前工具路径
+- [x] `zzm ide path` - 输出当前工具路径
   - 格式: JSON 或纯文本
   - 供其他工具或脚本引用
 
 ##### G. 基础设施层
-- [ ] 下载管理器
+- [x] 下载管理器
   - HTTP/HTTPS 请求（reqwest）
   - 进度回调（indicatif ProgressBar）
-  - 断点续传（Range 请求）
+  - 断点续传（Range 请求）— 未实现
   - 超时处理
   - 重试机制（指数退避）
-- [ ] 文件系统操作
-  - tar.gz / zip 解压（flate2, zip crate）
+- [x] 文件系统操作
+  - tar.gz / tar.xz / zip 解压（flate2, xz2, zip crate）
   - 符号链接创建（跨平台）
   - Windows shim 可执行文件生成
   - 目录创建与清理
-- [ ] 路径管理器
+- [x] 路径管理器
   - ~/.zzm/ 目录结构初始化
   - bin/, versions/, cache/ 管理
   - PATH 环境变量更新提示
-- [ ] 校验和验证
+- [x] 校验和验证
   - SHA256 计算（sha2 crate）
-  - minisign 签名验证（可选）
-- [ ] 缓存管理
+  - minisign 签名验证（可选）— 未实现
+- [x] 缓存管理
   - 下载缓存存储
   - TTL 过期清理
   - 磁盘空间监控
 
 ##### H. 配置管理
-- [ ] TOML 配置文件读写
+- [x] TOML 配置文件读写
   - ~/.zzm/config.toml
   - 配置结构体定义
   - 默认值处理
   - 配置合并策略（用户 > 系统 > 内置）
-- [ ] `zzm config list/get/set/edit`
+- [x] `zzm config list/get/set/edit`
 
 ##### I. 输出系统
-- [ ] 彩色终端输出（console crate）
-- [ ] 表格展示（tabled crate）
-- [ ] 进度条显示（indicatif crate）
-- [ ] JSON 输出模式（serde_json）
-- [ ] 成功/错误/警告消息样式
+- [x] 彩色终端输出（console crate）
+- [x] 表格展示（tabled crate）
+- [x] 进度条显示（indicatif crate）
+- [x] JSON 输出模式（serde_json）
+- [x] 成功/错误/警告消息样式
 
 ##### J. 平台抽象层
-- [ ] Platform trait 定义
-- [ ] Windows 适配器实现
-- [ ] macOS 适配器实现
-- [ ] Linux 适配器实现
-- [ ] 运行时平台检测
+- [x] Platform trait 定义
+- [x] Windows 适配器实现
+- [x] macOS 适配器实现
+- [x] Linux 适配器实现
+- [x] 运行时平台检测
 
 ##### K. 测试框架
-- [ ] 单元测试（核心模块覆盖率 > 80%）
-- [ ] 集成测试（关键流程）
+- [ ] 单元测试（核心模块覆盖率 > 80%）— 当前 51 个测试（50 通过/1 失败），覆盖率不足
+- [ ] 集成测试（关键流程）— 目录为空，未编写
 - [ ] Mock 数据生成
-- [ ] CI/CD 基础配置（GitHub Actions）
+- [ ] CI/CD 基础配置（GitHub Actions）— 未配置
   - Linux 构建
   - Windows 构建
   - macOS 构建
@@ -187,12 +187,12 @@
 
 #### ⚠️ 可以延后 (Should Have - MVP+)
 
-- [ ] 交互式 setup wizard (`zzm setup --wizard`)
-- [ ] Shell 自动补全脚本生成 (`zzm completion`)
-- [ ] `zzm doctor` 诊断程序
-- [ ] `zzm clean` 缓存清理
+- [x] 交互式 setup wizard (`zzm setup --wizard`) — 框架已实现，向导内容待完善
+- [x] Shell 自动补全脚本生成 (`zzm completion`)
+- [x] `zzm doctor` 诊断程序
+- [x] `zzm clean` 缓存清理
 - [ ] Neovim/Helix IDE 集成
-- [ ] 兼容性警告系统（Phase 2 完善）
+- [x] 兼容性警告系统（Phase 2 完善）
 
 ### 1.2 技术里程碑
 
@@ -595,6 +595,7 @@
 | 版本 | 日期 | 修改内容 |
 |-----|------|---------|
 | v1.0.0 | 2026-04-24 | 初始版本，建立完整路线图框架 |
+| v1.1.0 | 2026-04-25 | Phase 1 状态审查：更新已完成项标记（B-J 大部分已完成），标注测试/CI 待办 |
 
 ---
 
