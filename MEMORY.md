@@ -12,8 +12,9 @@
 
 ## 当前状态 (2026-04-25)
 - **阶段**: Phase 1 MVP — Sprint 0-5 核心功能完成，测试与发布准备中
-- **编译**: ✅ cargo build 零警告通过（22 个 dead code 已全部标注 `#[allow(dead_code)]`）
+- **编译**: ✅ cargo build + clippy 零警告通过
 - **测试**: ✅ 166/166 全部通过（T-024 单元测试补充完成：51→166，增幅 225%）
+- **文档**: ✅ 全部同步更新（architecture/api-reference/ROADMAP/TODO/README）
 - **已修复**: 版本解析边界 bug、dead code warnings、clippy 零警告
 - **待办**: 集成测试(T-025) → CI/CD → 发布
 

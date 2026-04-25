@@ -2,7 +2,7 @@
 
 ## 📋 文档信息
 
-- **版本**: v1.1.0
+- **版本**: v1.2.0
 - **创建日期**: 2026-04-23
 - **最后更新**: 2026-04-25
 - **状态**: 已更新（基于源码分析）
@@ -1551,6 +1551,8 @@ cargo install zzm --locked
 - VsCodeSettings 使用 `#[serde(flatten)]` 保留其他设置，符合设计
 - Downloader 指数退避重试 + 临时文件写入策略已实现
 - SHA256 校验、缓存TTL 1小时、GitHub Token 认证均按设计实现
+- Clippy 零警告通过（22个 dead code 已标注 `#[allow(dead_code)]`）
+- 单元测试 166/166 全部通过
 
 ### D.2 与设计文档的偏差
 

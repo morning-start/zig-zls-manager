@@ -2,11 +2,11 @@
 
 ## 📋 文档信息
 
-- **版本**: v1.1.0
+- **版本**: v1.4.0
 - **创建日期**: 2026-04-24
 - **当前阶段**: Phase 1 - MVP (v0.1.0) — Sprint 0-5 核心功能完成，测试与发布准备中
 - **关联文档**: [ROADMAP.md](./ROADMAP.md), [architecture.md](./architecture.md)
-- **编译状态**: ✅ cargo build 零警告通过（22 个 dead code 已标注 `#[allow(dead_code)]`）
+- **编译状态**: ✅ cargo build 零警告通过（clippy 零警告）
 - **测试状态**: ✅ 166/166 全部通过
 
 ---
@@ -452,7 +452,7 @@ T-028 (CI/CD) → T-029-T-031 (文档) → T-033 (发布)
 ### ✅ 已解决问题汇总（2026-04-25 修复）
 
 #### 编译警告（22 个 dead code warnings → 0）
-所有 dead code 已分类标注 `#[allow(dead_code)]`，保留预留 API 完整性：
+所有 dead code 已分类标注 `#[allow(dead_code)]`，clippy 零警告通过：
 - `src/core/project.rs`: `ProjectManager` 空壳结构体（预留: 项目级配置）
 - `src/utils/error.rs`: 6 个错误变体 + `Result` 类型别名（预留: 未来功能）
 - `src/utils/version.rs`: `new`, `with_pre`, `is_stable`（预留: 版本构造 API）
@@ -587,8 +587,8 @@ bugfix/progress-bar-crash
 - [ ] #009: zig_manager::use_version 中 _installed 变量未使用（确认版本是否存在但不读取信息）
 - [ ] #010: dead code 警告（project.rs 空壳模块，将在后续 Sprint 消除）
 - [ ] #011: 版本解析边界 bug — `"0."` 输入未返回 InvalidVersion 错误（导致测试失败）
-- [ ] #012: 22 个 dead code warnings — 为后续功能预留的代码（Phase 2 需要），应使用 `#[allow(dead_code)]` 或条件编译
-- [ ] #013: ROADMAP.md Phase 1 checklist 状态过时 — 大量已完成项仍标记为 `[ ]`
+- [x] #012: ~~22 个 dead code warnings — 为后续功能预留的代码（Phase 2 需要），应使用 `#[allow(dead_code)]` 或条件编译~~ → ✅ 已全部标注 `#[allow(dead_code)]`，clippy 零警告
+- [x] #013: ~~ROADMAP.md Phase 1 checklist 状态过时 — 大量已完成项仍标记为 `[ ]`~~ → ✅ 已在 v1.1.0 更新中标记完成项
 
 ---
 
@@ -607,6 +607,7 @@ bugfix/progress-bar-crash
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
+| 2026-04-25 | v1.4.0 | 文档同步：标记 #012/#013 已解决，更新编译状态为 clippy 零警告 |
 | 2026-04-25 | v1.3.0 | 项目审查：更新编译/测试状态，新增 #011-#013 已知问题，标注测试失败和 dead code 详情 |
 | 2026-04-25 | v1.2.0 | 更新 Sprint 0-4 全部完成，Sprint 5 大部分完成（T-020~T-023），剩余 T-024/T-025 |
 | 2026-04-25 | v1.1.0 | 更新 Sprint 0-3 全部完成，Sprint 4 部分完成（T-018/T-019），Sprint 5 部分完成（T-026/T-027） |
