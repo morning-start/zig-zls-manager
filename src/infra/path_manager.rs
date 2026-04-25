@@ -67,6 +67,14 @@ impl PathManager {
         self.platform.default_install_dir()
     }
 
+    /// 获取 default 目录（指向当前激活版本目录的符号链接）
+    ///
+    /// 例如: ~/.zzm/default -> ~/.zzm/versions/zig/0.13.0
+    /// 用法: 设置 ZIG_HOME=~/.zzm/default
+    pub fn default_dir(&self) -> PathBuf {
+        self.platform.default_dir()
+    }
+
     /// 获取 bin 目录
     pub fn bin_dir(&self) -> PathBuf {
         self.platform.bin_dir()
@@ -157,7 +165,7 @@ impl PathManager {
         Ok(())
     }
 
-    /// 创建 Zig 版本的符号链接
+    /// 创建 Zig 版本的符号链接（bin 目录方式）
     pub fn create_zig_symlink(&self, version: &str) -> Result<(), ZzmError> {
         let target = self.zig_binary_path(version);
         let link = self.zig_symlink_path();
@@ -171,7 +179,7 @@ impl PathManager {
         self.platform.create_symlink(&target, &link)
     }
 
-    /// 创建 ZLS 版本的符号链接
+    /// 创建 ZLS 版本的符号链接（bin 目录方式）
     pub fn create_zls_symlink(&self, version: &str) -> Result<(), ZzmError> {
         let target = self.zls_binary_path(version);
         let link = self.zls_symlink_path();
@@ -183,6 +191,56 @@ impl PathManager {
         }
 
         self.platform.create_symlink(&target, &link)
+    }
+
+    /// 创建 default 目录符号链接（指向指定 Zig 版本目录）
+    ///
+    /// 这是 java-mocha 风格的版本切换方式：
+    /// `~/.zzm/default -> ~/.zzm/versions/zig/0.13.0`
+    ///
+    /// 用户设置 `ZIG_HOME=~/.zzm/default` 即可使用当前版本
+    pub fn create_default_zig_symlink(&self, version: &str) -> Result<(), ZzmError> {
+        let target = self.zig_version_dir(version);
+        let link = self.default_dir();
+
+        if !target.exists() {
+            return Err(ZzmError::NotInstalled {
+                version: version.to_string(),
+            });
+        }
+
+        self.platform.create_symlink(&target, &link)
+    }
+
+    /// 创建 default-zls 目录符号链接（指向指定 ZLS 版本目录）
+    ///
+    /// 这是 java-mocha 风格的 ZLS 版本切换方式：
+    /// `~/.zzm/default-zls -> ~/.zzm/versions/zls/0.13.0`
+    ///
+    /// 用户设置 `ZLS_HOME=~/.zzm/default-zls` 即可使用当前版本
+    pub fn create_default_zls_symlink(&self, version: &str) -> Result<(), ZzmError> {
+        let target = self.zls_version_dir(version);
+        let link = self.install_dir().join("default-zls");
+
+        if !target.exists() {
+            return Err(ZzmError::NotInstalled {
+                version: version.to_string(),
+            });
+        }
+
+        self.platform.create_symlink(&target, &link)
+    }
+
+    /// 删除 default 目录符号链接
+    pub fn remove_default_symlink(&self) -> Result<(), ZzmError> {
+        let link = self.default_dir();
+        self.platform.remove_symlink(&link)
+    }
+
+    /// 删除 default-zls 目录符号链接
+    pub fn remove_default_zls_symlink(&self) -> Result<(), ZzmError> {
+        let link = self.install_dir().join("default-zls");
+        self.platform.remove_symlink(&link)
     }
 
     /// 删除 Zig 的符号链接
