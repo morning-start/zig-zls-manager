@@ -1,4 +1,5 @@
 use crate::output::console_output;
+use crate::utils::version::Version;
 
 /// 兼容性状态
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,12 +47,12 @@ impl CompatibilityChecker {
             };
         }
 
-        // 解析 Zig 版本
-        let zig_parts = Self::parse_version_parts(zig_version);
-        let zls_parts = Self::parse_version_parts(zls_version);
+        // 使用统一的 Version 解析
+        let zig_ver: Result<Version, _> = zig_version.trim_start_matches('v').parse();
+        let zls_ver: Result<Version, _> = zls_version.trim_start_matches('v').parse();
 
-        match (zig_parts, zls_parts) {
-            (Some(zig), Some(zls)) => {
+        match (zig_ver, zls_ver) {
+            (Ok(zig), Ok(zls)) => {
                 // 精确匹配
                 if zig.major == zls.major && zig.minor == zls.minor && zig.patch == zls.patch {
                     return CompatibilityStatus::Compatible;
@@ -110,9 +111,9 @@ impl CompatibilityChecker {
     pub fn recommended_zls_version(zig_version: &str) -> Option<String> {
         // 对于稳定版，推荐同版本号的 ZLS
         if zig_version != "master" && zig_version != "nightly" {
-            let parts = Self::parse_version_parts(zig_version);
-            if let Some(p) = parts {
-                return Some(format!("{}.{}.{}", p.major, p.minor, p.patch));
+            let ver: Result<Version, _> = zig_version.trim_start_matches('v').parse();
+            if let Ok(v) = ver {
+                return Some(v.to_string());
             }
         }
         // 对于 nightly，推荐 master
@@ -121,35 +122,6 @@ impl CompatibilityChecker {
         }
         None
     }
-
-    /// 解析版本号字符串为 (major, minor, patch)
-    fn parse_version_parts(version: &str) -> Option<VersionParts> {
-        let version = version.trim_start_matches('v');
-        let parts: Vec<&str> = version.split('.').collect();
-        if parts.len() >= 2 {
-            let major = parts[0].parse::<u64>().ok()?;
-            let minor = parts[1].parse::<u64>().ok()?;
-            let patch = if parts.len() >= 3 {
-                parts[2].parse::<u64>().unwrap_or(0)
-            } else {
-                0
-            };
-            Some(VersionParts {
-                major,
-                minor,
-                patch,
-            })
-        } else {
-            None
-        }
-    }
-}
-
-/// 版本号组成部分
-struct VersionParts {
-    major: u64,
-    minor: u64,
-    patch: u64,
 }
 
 // ========== 单元测试 ==========
