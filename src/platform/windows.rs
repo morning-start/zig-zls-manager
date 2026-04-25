@@ -103,7 +103,7 @@ impl WindowsPlatform {
             std::fs::remove_dir(link).map_err(|e| ZzmError::SymlinkFailed {
                 from: link.to_string_lossy().to_string(),
                 to: target.to_string_lossy().to_string(),
-                reason: format!("删除已有 junction 失败: {}", e),
+                reason: format!("删除已有 junction 失败: {e}"),
             })?;
         }
 
@@ -116,7 +116,7 @@ impl WindowsPlatform {
             .map_err(|e| ZzmError::SymlinkFailed {
                 from: link.to_string_lossy().to_string(),
                 to: target.to_string_lossy().to_string(),
-                reason: format!("执行 mklink 失败: {}", e),
+                reason: format!("执行 mklink 失败: {e}"),
             })?;
 
         if !output.status.success() {

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::utils::error::ZzmError;
 
-/// 配置文件部分结构体（仅读取 install_dir，避免循环依赖）
+/// 配置文件部分结构体（仅读取 `install_dir，避免循环依赖`）
 #[derive(Debug, serde::Deserialize)]
 struct ZZMConfigPartial {
     #[serde(default)]
@@ -73,7 +73,7 @@ pub trait PlatformTrait: Send + Sync {
 
     /// 获取 default 目录（指向当前版本的符号链接）
     ///
-    /// 用法: 设置 ZIG_HOME=<zzm_root>/default 或将 <zzm_root>/default/bin 加入 PATH
+    /// 用法: 设置 `ZIG_HOME`=<`zzm_root>/default` 或将 <`zzm_root>/default/bin` 加入 PATH
     fn default_dir(&self) -> PathBuf {
         self.default_install_dir().join("default")
     }
