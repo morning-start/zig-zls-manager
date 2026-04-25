@@ -852,13 +852,13 @@ async fn cmd_doctor(platform: &dyn platform::PlatformTrait) -> Result<(), utils:
         "  ZIG_HOME={} (设置后 zig 将自动使用当前版本)",
         default_dir.display()
     );
-    if let Ok(index) = PathManager::new(platform.clone_box()).read_installed_index() {
-        if index.active_zls.is_some() {
-            println!(
-                "  ZLS_HOME={} (设置后 zls 将自动使用当前版本)",
-                platform.default_install_dir().join("default-zls").display()
-            );
-        }
+    if let Ok(index) = PathManager::new(platform.clone_box()).read_installed_index()
+        && index.active_zls.is_some()
+    {
+        println!(
+            "  ZLS_HOME={} (设置后 zls 将自动使用当前版本)",
+            platform.default_install_dir().join("default-zls").display()
+        );
     }
 
     Ok(())
