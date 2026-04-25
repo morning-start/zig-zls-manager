@@ -2,9 +2,10 @@
 
 ## 📋 文档信息
 
-- **版本**: v1.0.0
+- **版本**: v1.1.0
 - **创建日期**: 2026-04-23
-- **状态**: 初稿
+- **最后更新**: 2026-04-25
+- **状态**: 已更新（基于源码分析）
 - **关联文档**: [spec.md](./spec.md) (需求规格说明书)
 
 ---
@@ -1535,6 +1536,40 @@ cargo install zzm --locked
 | LSP | Language Server Protocol | 语言服务器协议 |
 | TUI | Terminal User Interface | 终端用户界面 |
 | DERIVE | Derive Macro | Rust 过程宏，用于自动实现 trait |
+
+---
+
+## 附录 D. 源码分析验证（2026-04-25）
+
+基于源码深度分析，以下为架构文档与实际实现的偏差记录：
+
+### D.1 已确认一致的项
+
+- 4层分层架构（CLI/Core/Infra/Platform）已按设计实现
+- PlatformTrait + 3平台适配器（Windows/macOS/Linux）已完整实现
+- ZzmError 统一错误类型，17种变体覆盖设计文档中的所有错误场景
+- VsCodeSettings 使用 `#[serde(flatten)]` 保留其他设置，符合设计
+- Downloader 指数退避重试 + 临时文件写入策略已实现
+- SHA256 校验、缓存TTL 1小时、GitHub Token 认证均按设计实现
+
+### D.2 与设计文档的偏差
+
+| 设计项 | 设计文档描述 | 实际实现 | 状态 |
+|--------|-------------|----------|------|
+| 进程管理器 | Infra层含进程管理器 | 未实现 | 规划中 |
+| 项目管理器 | Core层含项目管理器 | 空壳（仅 `pub struct ProjectManager;`） | 未实现 |
+| 交互式向导 | CLI层含交互式向导 | 未实现 | 规划中 |
+| 自动补全 | CLI层含自动补全 | 未实现 | 规划中 |
+| 日志系统 | Infra层含日志系统 | 仅 API 层使用 tracing | 不完整 |
+
+### D.3 已识别的技术债务
+
+- **TD-1**: `resolve_version("0.")` 正则匹配缺陷，需修复
+- **TD-4**: ZigManager/ZlsManager 代码重复度约65%，需泛型抽象
+- **TD-5**: main.rs ~700行路由逻辑过重，需重构为 Command trait
+- **TD-6**: Core 层直接创建 Infra 实例，无法注入 mock 依赖
+
+> 详细分析见 [ANALYSIS_REPORT.md](../../repo-analyses/zig-zls-manager-20260425/ANALYSIS_REPORT.md)
 
 ---
 

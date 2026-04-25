@@ -574,7 +574,7 @@
 
 ### 开发规范
 
-- 遵循 Rust 2018 edition 编码规范
+- 遵循 Rust 2024 edition 编码规范
 - 使用 `rustfmt` 格式化代码
 - 通过 `clippy` 检查
 - 为公共 API 编写文档注释
