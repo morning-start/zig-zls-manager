@@ -2,10 +2,12 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::time::Duration;
 
 /// 下载进度条管理器
+#[allow(dead_code)] // 预留: 下载进度展示
 pub struct DownloadProgress {
     bar: ProgressBar,
 }
 
+#[allow(dead_code)] // 预留: 下载进度展示
 impl DownloadProgress {
     /// 创建新的下载进度条
     pub fn new(name: &str, total_size: u64) -> Self {
@@ -39,6 +41,7 @@ impl DownloadProgress {
 }
 
 /// 创建一个简单的 spinner（用于不确定进度的操作）
+#[allow(dead_code)] // 预留: 长操作 spinner
 pub fn create_spinner(msg: &str) -> ProgressBar {
     let bar = ProgressBar::new_spinner();
     bar.set_style(

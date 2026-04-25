@@ -2,6 +2,7 @@ use tabled::{Table, Tabled, settings::Style};
 
 /// 版本列表行数据
 #[derive(Tabled)]
+#[allow(dead_code)] // 预留: 版本列表表格渲染
 pub struct VersionRow {
     #[tabled(rename = "版本")]
     pub version: String,
@@ -38,6 +39,7 @@ pub struct RemoteVersionRow {
 }
 
 /// 渲染版本列表表格
+#[allow(dead_code)] // 预留: 版本列表表格渲染
 pub fn render_version_table(rows: &[VersionRow]) {
     let mut table = Table::new(rows);
     table.with(Style::rounded());
