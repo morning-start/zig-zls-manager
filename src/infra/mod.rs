@@ -1,3 +1,4 @@
+pub mod api_cache;
 pub mod cache;
 pub mod checksum;
 pub mod downloader;

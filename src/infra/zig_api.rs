@@ -4,6 +4,7 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
+use crate::core::channel::Channel;
 use crate::utils::error::ZzmError;
 
 /// Zig 官方下载 API 端点
@@ -114,20 +115,11 @@ pub struct ZigVersionInfo {
     /// 版本号字符串
     pub version: String,
     /// 版本通道
-    pub channel: ZigChannel,
+    pub channel: Channel,
     /// 构建日期
     pub date: String,
     /// 当前平台匹配的下载资源
     pub asset: Option<ZigPlatformAsset>,
-}
-
-/// Zig 版本通道
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ZigChannel {
-    /// 稳定发布版
-    Stable,
-    /// 开发版 (master/nightly)
-    Nightly,
 }
 
 // ========== API 客户端 ==========
@@ -135,7 +127,7 @@ pub enum ZigChannel {
 /// Zig API 客户端
 pub struct ZigApiClient {
     client: Client,
-    cache_dir: PathBuf,
+    cache: crate::infra::api_cache::ApiCache<ZigDownloadIndex>,
 }
 
 impl ZigApiClient {
@@ -153,50 +145,15 @@ impl ZigApiClient {
             std::fs::create_dir_all(&cache_dir).map_err(ZzmError::Io)?;
         }
 
-        Ok(Self { client, cache_dir })
-    }
+        let cache = crate::infra::api_cache::ApiCache::new(cache_dir, CACHE_FILENAME, CACHE_TTL);
 
-    /// 获取缓存文件路径
-    fn cache_path(&self) -> PathBuf {
-        self.cache_dir.join(CACHE_FILENAME)
-    }
-
-    /// 从缓存加载索引数据（如果未过期）
-    fn load_from_cache(&self) -> Option<ZigDownloadIndex> {
-        let path = self.cache_path();
-        if !path.exists() {
-            return None;
-        }
-
-        // 检查缓存文件修改时间
-        let metadata = std::fs::metadata(&path).ok()?;
-        let modified = metadata.modified().ok()?;
-        let elapsed = modified.elapsed().ok()?;
-
-        if elapsed > CACHE_TTL {
-            tracing::debug!("Zig API 缓存已过期");
-            return None;
-        }
-
-        let content = std::fs::read_to_string(&path).ok()?;
-        let index: ZigDownloadIndex = serde_json::from_str(&content).ok()?;
-        tracing::debug!("从缓存加载 Zig 索引数据");
-        Some(index)
-    }
-
-    /// 将索引数据写入缓存
-    fn save_to_cache(&self, index: &ZigDownloadIndex) -> Result<(), ZzmError> {
-        let path = self.cache_path();
-        let content = serde_json::to_string_pretty(index)?;
-        std::fs::write(&path, content)?;
-        tracing::debug!("Zig 索引数据已缓存");
-        Ok(())
+        Ok(Self { client, cache })
     }
 
     /// 从远程 API 获取 Zig 下载索引（带缓存）
     pub async fn fetch_index(&self) -> Result<ZigDownloadIndex, ZzmError> {
         // 先尝试从缓存读取
-        if let Some(cached) = self.load_from_cache() {
+        if let Some(cached) = self.cache.load() {
             return Ok(cached);
         }
 
@@ -224,7 +181,7 @@ impl ZigApiClient {
         let index: ZigDownloadIndex = response.json().await?;
 
         // 保存到缓存
-        self.save_to_cache(&index)?;
+        self.cache.save(&index)?;
 
         Ok(index)
     }
@@ -238,9 +195,9 @@ impl ZigApiClient {
 
         for (version_str, entry) in &index.0 {
             let channel = if version_str == "master" {
-                ZigChannel::Nightly
+                Channel::Nightly
             } else {
-                ZigChannel::Stable
+                Channel::Stable
             };
 
             // 查找当前平台匹配的资源
@@ -257,10 +214,14 @@ impl ZigApiClient {
         // 稳定版按版本号降序排列，master 放最后
         versions.sort_by(|a, b| {
             match (&a.channel, &b.channel) {
-                (ZigChannel::Nightly, ZigChannel::Nightly) => std::cmp::Ordering::Equal,
-                (ZigChannel::Nightly, ZigChannel::Stable) => std::cmp::Ordering::Greater,
-                (ZigChannel::Stable, ZigChannel::Nightly) => std::cmp::Ordering::Less,
-                (ZigChannel::Stable, ZigChannel::Stable) => {
+                (Channel::Nightly, Channel::Nightly) => std::cmp::Ordering::Equal,
+                (Channel::Nightly, _) => std::cmp::Ordering::Greater,
+                (Channel::Prerelease, Channel::Prerelease) => std::cmp::Ordering::Equal,
+                (Channel::Prerelease, Channel::Nightly) => std::cmp::Ordering::Less,
+                (Channel::Prerelease, Channel::Stable) => std::cmp::Ordering::Greater,
+                (Channel::Stable, Channel::Nightly) => std::cmp::Ordering::Less,
+                (Channel::Stable, Channel::Prerelease) => std::cmp::Ordering::Less,
+                (Channel::Stable, Channel::Stable) => {
                     // 尝试按语义版本比较
                     let va: std::result::Result<crate::utils::version::Version, _> =
                         a.version.parse();
@@ -293,9 +254,9 @@ impl ZigApiClient {
             })?;
 
         let channel = if resolved == "master" {
-            ZigChannel::Nightly
+            Channel::Nightly
         } else {
-            ZigChannel::Stable
+            Channel::Stable
         };
 
         let asset = find_matching_asset(&entry.platforms, target_triple);
@@ -314,7 +275,7 @@ impl ZigApiClient {
         let versions = self.list_remote_versions().await?;
         versions
             .into_iter()
-            .find(|v| v.channel == ZigChannel::Stable)
+            .find(|v| v.channel == Channel::Stable)
             .ok_or_else(|| ZzmError::VersionNotFound {
                 version: "stable".to_string(),
             })
@@ -326,7 +287,7 @@ impl ZigApiClient {
         let versions = self.list_remote_versions().await?;
         versions
             .into_iter()
-            .find(|v| v.channel == ZigChannel::Nightly)
+            .find(|v| v.channel == Channel::Nightly)
             .ok_or_else(|| ZzmError::VersionNotFound {
                 version: "master".to_string(),
             })
@@ -337,7 +298,7 @@ impl ZigApiClient {
 
 /// 在平台列表中查找匹配当前目标三元组的资源
 fn find_matching_asset(platforms: &ZigPlatforms, target_triple: &str) -> Option<ZigPlatformAsset> {
-    let (os_name, arch_name) = parse_target_triple(target_triple)?;
+    let (os_name, arch_name) = crate::platform::parse_target_triple(target_triple)?;
 
     let platform_list = match os_name {
         "windows" => &platforms.windows,
@@ -356,16 +317,35 @@ fn find_matching_asset(platforms: &ZigPlatforms, target_triple: &str) -> Option<
         .cloned()
 }
 
-/// 解析目标三元组为 (os, arch)
-fn parse_target_triple(triple: &str) -> Option<(&str, &str)> {
-    match triple {
-        "x86_64-windows" => Some(("windows", "x86_64")),
-        "aarch64-windows" => Some(("windows", "aarch64")),
-        "x86_64-macos" => Some(("macos", "x86_64")),
-        "aarch64-macos" => Some(("macos", "aarch64")),
-        "x86_64-linux" => Some(("linux", "x86_64")),
-        "aarch64-linux" => Some(("linux", "aarch64")),
-        _ => None,
+// ========== VersionProvider 实现 ==========
+
+impl crate::core::tool_manager::VersionProvider for ZigApiClient {
+    async fn get_version_info(&self, version: &str) -> Result<crate::core::tool_manager::VersionInfo, ZzmError> {
+        let info = self.get_version_info(version).await?;
+        Ok(crate::core::tool_manager::VersionInfo {
+            version: info.version,
+            channel: info.channel,
+            asset: info.asset.map(|a| crate::core::tool_manager::DownloadAsset {
+                url: a.url,
+                filename: a.filename,
+                shasum: a.shasum,
+                size: a.size,
+            }),
+        })
+    }
+
+    async fn list_remote_versions(&self) -> Result<Vec<crate::core::tool_manager::VersionInfo>, ZzmError> {
+        let versions = self.list_remote_versions().await?;
+        Ok(versions.into_iter().map(|v| crate::core::tool_manager::VersionInfo {
+            version: v.version,
+            channel: v.channel,
+            asset: v.asset.map(|a| crate::core::tool_manager::DownloadAsset {
+                url: a.url,
+                filename: a.filename,
+                shasum: a.shasum,
+                size: a.size,
+            }),
+        }).collect())
     }
 }
 
@@ -419,27 +399,27 @@ mod tests {
     #[test]
     fn test_parse_target_triple() {
         assert_eq!(
-            parse_target_triple("x86_64-windows"),
+            crate::platform::parse_target_triple("x86_64-windows"),
             Some(("windows", "x86_64"))
         );
         assert_eq!(
-            parse_target_triple("aarch64-macos"),
+            crate::platform::parse_target_triple("aarch64-macos"),
             Some(("macos", "aarch64"))
         );
         assert_eq!(
-            parse_target_triple("x86_64-linux"),
+            crate::platform::parse_target_triple("x86_64-linux"),
             Some(("linux", "x86_64"))
         );
-        assert_eq!(parse_target_triple("unknown"), None);
+        assert_eq!(crate::platform::parse_target_triple("unknown"), None);
     }
 
     #[test]
     fn test_zig_channel_serde() {
-        let stable = ZigChannel::Stable;
+        let stable = Channel::Stable;
         let json = serde_json::to_string(&stable).unwrap();
         assert!(json.contains("Stable"));
 
-        let nightly = ZigChannel::Nightly;
+        let nightly = Channel::Nightly;
         let json = serde_json::to_string(&nightly).unwrap();
         assert!(json.contains("Nightly"));
     }
@@ -494,36 +474,36 @@ mod tests {
     #[test]
     fn test_parse_target_triple_all() {
         assert_eq!(
-            parse_target_triple("x86_64-windows"),
+            crate::platform::parse_target_triple("x86_64-windows"),
             Some(("windows", "x86_64"))
         );
         assert_eq!(
-            parse_target_triple("aarch64-windows"),
+            crate::platform::parse_target_triple("aarch64-windows"),
             Some(("windows", "aarch64"))
         );
         assert_eq!(
-            parse_target_triple("x86_64-macos"),
+            crate::platform::parse_target_triple("x86_64-macos"),
             Some(("macos", "x86_64"))
         );
         assert_eq!(
-            parse_target_triple("aarch64-macos"),
+            crate::platform::parse_target_triple("aarch64-macos"),
             Some(("macos", "aarch64"))
         );
         assert_eq!(
-            parse_target_triple("x86_64-linux"),
+            crate::platform::parse_target_triple("x86_64-linux"),
             Some(("linux", "x86_64"))
         );
         assert_eq!(
-            parse_target_triple("aarch64-linux"),
+            crate::platform::parse_target_triple("aarch64-linux"),
             Some(("linux", "aarch64"))
         );
     }
 
     #[test]
     fn test_zig_channel_equality() {
-        assert_eq!(ZigChannel::Stable, ZigChannel::Stable);
-        assert_eq!(ZigChannel::Nightly, ZigChannel::Nightly);
-        assert_ne!(ZigChannel::Stable, ZigChannel::Nightly);
+        assert_eq!(Channel::Stable, Channel::Stable);
+        assert_eq!(Channel::Nightly, Channel::Nightly);
+        assert_ne!(Channel::Stable, Channel::Nightly);
     }
 
     #[test]
@@ -575,7 +555,7 @@ mod tests {
     fn test_zig_version_info_serialization() {
         let info = ZigVersionInfo {
             version: "0.13.0".to_string(),
-            channel: ZigChannel::Stable,
+            channel: Channel::Stable,
             date: "2024-06-06".to_string(),
             asset: None,
         };
@@ -583,7 +563,7 @@ mod tests {
         let json = serde_json::to_string(&info).unwrap();
         let parsed: ZigVersionInfo = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.version, "0.13.0");
-        assert_eq!(parsed.channel, ZigChannel::Stable);
+        assert_eq!(parsed.channel, Channel::Stable);
     }
 
     #[test]

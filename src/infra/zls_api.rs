@@ -5,6 +5,7 @@ use reqwest::Client;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 
+use crate::core::channel::Channel;
 use crate::utils::error::ZzmError;
 
 /// ZLS GitHub Releases API 端点
@@ -82,7 +83,7 @@ pub struct ZlsVersionInfo {
     /// 版本号字符串（来自 `tag_name`）
     pub version: String,
     /// 版本通道
-    pub channel: ZlsChannel,
+    pub channel: Channel,
     /// 发布时间
     pub published_at: Option<String>,
     /// 当前平台匹配的下载资源
@@ -91,21 +92,12 @@ pub struct ZlsVersionInfo {
     pub html_url: String,
 }
 
-/// ZLS 版本通道
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ZlsChannel {
-    /// 稳定发布版
-    Stable,
-    /// 预发布版
-    Prerelease,
-}
-
 // ========== API 客户端 ==========
 
 /// ZLS GitHub API 客户端
 pub struct ZlsApiClient {
     client: Client,
-    cache_dir: PathBuf,
+    cache: crate::infra::api_cache::ApiCache<Vec<GithubRelease>>,
 }
 
 impl ZlsApiClient {
@@ -138,49 +130,15 @@ impl ZlsApiClient {
             std::fs::create_dir_all(&cache_dir).map_err(ZzmError::Io)?;
         }
 
-        Ok(Self { client, cache_dir })
-    }
+        let cache = crate::infra::api_cache::ApiCache::new(cache_dir, CACHE_FILENAME, CACHE_TTL);
 
-    /// 获取缓存文件路径
-    fn cache_path(&self) -> PathBuf {
-        self.cache_dir.join(CACHE_FILENAME)
-    }
-
-    /// 从缓存加载 releases 数据（如果未过期）
-    fn load_from_cache(&self) -> Option<Vec<GithubRelease>> {
-        let path = self.cache_path();
-        if !path.exists() {
-            return None;
-        }
-
-        let metadata = std::fs::metadata(&path).ok()?;
-        let modified = metadata.modified().ok()?;
-        let elapsed = modified.elapsed().ok()?;
-
-        if elapsed > CACHE_TTL {
-            tracing::debug!("ZLS API 缓存已过期");
-            return None;
-        }
-
-        let content = std::fs::read_to_string(&path).ok()?;
-        let releases: Vec<GithubRelease> = serde_json::from_str(&content).ok()?;
-        tracing::debug!("从缓存加载 ZLS releases 数据");
-        Some(releases)
-    }
-
-    /// 将 releases 数据写入缓存
-    fn save_to_cache(&self, releases: &[GithubRelease]) -> Result<(), ZzmError> {
-        let path = self.cache_path();
-        let content = serde_json::to_string_pretty(releases)?;
-        std::fs::write(&path, content)?;
-        tracing::debug!("ZLS releases 数据已缓存");
-        Ok(())
+        Ok(Self { client, cache })
     }
 
     /// 从远程 API 获取 ZLS Releases 列表（带缓存和重试）
     pub async fn fetch_releases(&self) -> Result<Vec<GithubRelease>, ZzmError> {
         // 先尝试从缓存读取
-        if let Some(cached) = self.load_from_cache() {
+        if let Some(cached) = self.cache.load() {
             return Ok(cached);
         }
 
@@ -189,7 +147,7 @@ impl ZlsApiClient {
         let releases = self.fetch_with_retry(3).await?;
 
         // 保存到缓存
-        self.save_to_cache(&releases)?;
+        self.cache.save(&releases)?;
 
         Ok(releases)
     }
@@ -288,9 +246,9 @@ impl ZlsApiClient {
             .filter(|r| !r.draft) // 过滤掉草稿
             .map(|release| {
                 let channel = if release.prerelease {
-                    ZlsChannel::Prerelease
+                    Channel::Prerelease
                 } else {
-                    ZlsChannel::Stable
+                    Channel::Stable
                 };
 
                 let asset = find_matching_zls_asset(&release.assets, target_triple);
@@ -307,10 +265,14 @@ impl ZlsApiClient {
 
         // 稳定版在前，按版本号降序排列
         versions.sort_by(|a, b| match (&a.channel, &b.channel) {
-            (ZlsChannel::Prerelease, ZlsChannel::Prerelease) => std::cmp::Ordering::Equal,
-            (ZlsChannel::Prerelease, ZlsChannel::Stable) => std::cmp::Ordering::Greater,
-            (ZlsChannel::Stable, ZlsChannel::Prerelease) => std::cmp::Ordering::Less,
-            (ZlsChannel::Stable, ZlsChannel::Stable) => {
+            (Channel::Prerelease, Channel::Prerelease) => std::cmp::Ordering::Equal,
+            (Channel::Prerelease, _) => std::cmp::Ordering::Greater,
+            (Channel::Nightly, Channel::Prerelease) => std::cmp::Ordering::Less,
+            (Channel::Nightly, Channel::Nightly) => std::cmp::Ordering::Equal,
+            (Channel::Nightly, Channel::Stable) => std::cmp::Ordering::Greater,
+            (Channel::Stable, Channel::Prerelease) => std::cmp::Ordering::Less,
+            (Channel::Stable, Channel::Nightly) => std::cmp::Ordering::Less,
+            (Channel::Stable, Channel::Stable) => {
                 let va: std::result::Result<crate::utils::version::Version, _> = a.version.parse();
                 let vb: std::result::Result<crate::utils::version::Version, _> = b.version.parse();
                 match (va, vb) {
@@ -340,7 +302,7 @@ impl ZlsApiClient {
         let versions = self.list_remote_versions().await?;
         versions
             .into_iter()
-            .find(|v| v.channel == ZlsChannel::Stable)
+            .find(|v| v.channel == Channel::Stable)
             .ok_or_else(|| ZzmError::VersionNotFound {
                 version: "zls stable".to_string(),
             })
@@ -358,7 +320,7 @@ impl ZlsApiClient {
         // 先尝试精确匹配
         let exact_match = versions
             .iter()
-            .find(|v| v.version == zig_version && v.channel == ZlsChannel::Stable);
+            .find(|v| v.version == zig_version && v.channel == Channel::Stable);
         if let Some(m) = exact_match {
             return Ok(m.clone());
         }
@@ -369,14 +331,14 @@ impl ZlsApiClient {
             let major_minor = format!("{}.{}", zig_parts[0], zig_parts[1]);
             let partial_match = versions
                 .iter()
-                .find(|v| v.version.starts_with(&major_minor) && v.channel == ZlsChannel::Stable);
+                .find(|v| v.version.starts_with(&major_minor) && v.channel == Channel::Stable);
             if let Some(m) = partial_match {
                 return Ok(m.clone());
             }
         }
 
         // 回退到最新稳定版
-        let latest = versions.iter().find(|v| v.channel == ZlsChannel::Stable);
+        let latest = versions.iter().find(|v| v.channel == Channel::Stable);
         if let Some(m) = latest {
             tracing::warn!(
                 "未找到与 Zig {} 精确匹配的 ZLS 版本，使用最新稳定版 {}",
@@ -396,7 +358,7 @@ impl ZlsApiClient {
 
 /// 在 asset 列表中查找匹配当前平台的 ZLS 二进制文件
 fn find_matching_zls_asset(assets: &[GithubAsset], target_triple: &str) -> Option<GithubAsset> {
-    let (os_name, arch_name) = parse_zls_target_triple(target_triple)?;
+    let (os_name, arch_name) = crate::platform::parse_target_triple(target_triple)?;
 
     assets
         .iter()
@@ -411,16 +373,49 @@ fn find_matching_zls_asset(assets: &[GithubAsset], target_triple: &str) -> Optio
         .cloned()
 }
 
-/// 解析目标三元组为 ZLS 文件名中的 (os, arch) 部分
-fn parse_zls_target_triple(triple: &str) -> Option<(&str, &str)> {
-    match triple {
-        "x86_64-windows" => Some(("windows", "x86_64")),
-        "aarch64-windows" => Some(("windows", "aarch64")),
-        "x86_64-macos" => Some(("macos", "x86_64")),
-        "aarch64-macos" => Some(("macos", "aarch64")),
-        "x86_64-linux" => Some(("linux", "x86_64")),
-        "aarch64-linux" => Some(("linux", "aarch64")),
-        _ => None,
+// ========== VersionProvider 实现 ==========
+
+impl crate::core::tool_manager::VersionProvider for ZlsApiClient {
+    async fn get_version_info(&self, version: &str) -> Result<crate::core::tool_manager::VersionInfo, ZzmError> {
+        let info = self.get_version_info(version).await?;
+        Ok(crate::core::tool_manager::VersionInfo {
+            version: info.version,
+            channel: info.channel,
+            asset: info.asset.map(|a| crate::core::tool_manager::DownloadAsset {
+                url: a.browser_download_url,
+                filename: a.name,
+                shasum: String::new(), // ZLS 不提供 shasum
+                size: crate::utils::format::format_size(a.size),
+            }),
+        })
+    }
+
+    async fn list_remote_versions(&self) -> Result<Vec<crate::core::tool_manager::VersionInfo>, ZzmError> {
+        let versions = self.list_remote_versions().await?;
+        Ok(versions.into_iter().map(|v| crate::core::tool_manager::VersionInfo {
+            version: v.version,
+            channel: v.channel,
+            asset: v.asset.map(|a| crate::core::tool_manager::DownloadAsset {
+                url: a.browser_download_url,
+                filename: a.name,
+                shasum: String::new(),
+                size: crate::utils::format::format_size(a.size),
+            }),
+        }).collect())
+    }
+
+    async fn find_compatible_version(&self, zig_version: &str) -> Result<crate::core::tool_manager::VersionInfo, ZzmError> {
+        let info = self.find_compatible_version(zig_version).await?;
+        Ok(crate::core::tool_manager::VersionInfo {
+            version: info.version,
+            channel: info.channel,
+            asset: info.asset.map(|a| crate::core::tool_manager::DownloadAsset {
+                url: a.browser_download_url,
+                filename: a.name,
+                shasum: String::new(),
+                size: crate::utils::format::format_size(a.size),
+            }),
+        })
     }
 }
 
@@ -433,18 +428,18 @@ mod tests {
     #[test]
     fn test_parse_zls_target_triple() {
         assert_eq!(
-            parse_zls_target_triple("x86_64-windows"),
+            crate::platform::parse_target_triple("x86_64-windows"),
             Some(("windows", "x86_64"))
         );
         assert_eq!(
-            parse_zls_target_triple("aarch64-macos"),
+            crate::platform::parse_target_triple("aarch64-macos"),
             Some(("macos", "aarch64"))
         );
         assert_eq!(
-            parse_zls_target_triple("x86_64-linux"),
+            crate::platform::parse_target_triple("x86_64-linux"),
             Some(("linux", "x86_64"))
         );
-        assert_eq!(parse_zls_target_triple("unknown"), None);
+        assert_eq!(crate::platform::parse_target_triple("unknown"), None);
     }
 
     #[test]
@@ -507,42 +502,42 @@ mod tests {
 
     #[test]
     fn test_zls_channel_serde() {
-        let stable = ZlsChannel::Stable;
+        let stable = Channel::Stable;
         let json = serde_json::to_string(&stable).unwrap();
         assert!(json.contains("Stable"));
     }
 
     #[test]
     fn test_zls_channel_equality() {
-        assert_eq!(ZlsChannel::Stable, ZlsChannel::Stable);
-        assert_eq!(ZlsChannel::Prerelease, ZlsChannel::Prerelease);
-        assert_ne!(ZlsChannel::Stable, ZlsChannel::Prerelease);
+        assert_eq!(Channel::Stable, Channel::Stable);
+        assert_eq!(Channel::Prerelease, Channel::Prerelease);
+        assert_ne!(Channel::Stable, Channel::Prerelease);
     }
 
     #[test]
     fn test_parse_zls_target_triple_all() {
         assert_eq!(
-            parse_zls_target_triple("x86_64-windows"),
+            crate::platform::parse_target_triple("x86_64-windows"),
             Some(("windows", "x86_64"))
         );
         assert_eq!(
-            parse_zls_target_triple("aarch64-windows"),
+            crate::platform::parse_target_triple("aarch64-windows"),
             Some(("windows", "aarch64"))
         );
         assert_eq!(
-            parse_zls_target_triple("x86_64-macos"),
+            crate::platform::parse_target_triple("x86_64-macos"),
             Some(("macos", "x86_64"))
         );
         assert_eq!(
-            parse_zls_target_triple("aarch64-macos"),
+            crate::platform::parse_target_triple("aarch64-macos"),
             Some(("macos", "aarch64"))
         );
         assert_eq!(
-            parse_zls_target_triple("x86_64-linux"),
+            crate::platform::parse_target_triple("x86_64-linux"),
             Some(("linux", "x86_64"))
         );
         assert_eq!(
-            parse_zls_target_triple("aarch64-linux"),
+            crate::platform::parse_target_triple("aarch64-linux"),
             Some(("linux", "aarch64"))
         );
     }
@@ -624,7 +619,7 @@ mod tests {
     fn test_zls_version_info_serialization() {
         let info = ZlsVersionInfo {
             version: "0.13.0".to_string(),
-            channel: ZlsChannel::Stable,
+            channel: Channel::Stable,
             published_at: Some("2026-04-16T20:46:43Z".to_string()),
             asset: None,
             html_url: "https://github.com/zigtools/zls/releases/tag/0.13.0".to_string(),
@@ -633,7 +628,7 @@ mod tests {
         let json = serde_json::to_string(&info).unwrap();
         let parsed: ZlsVersionInfo = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.version, "0.13.0");
-        assert_eq!(parsed.channel, ZlsChannel::Stable);
+        assert_eq!(parsed.channel, Channel::Stable);
     }
 
     #[test]

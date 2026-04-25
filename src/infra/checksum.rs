@@ -2,6 +2,7 @@ use sha2::{Digest, Sha256};
 
 use crate::utils::error::ZzmError;
 
+#[allow(dead_code)] // 保留: 小数据量的内存校验
 pub fn calculate_sha256(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
@@ -9,9 +10,20 @@ pub fn calculate_sha256(data: &[u8]) -> String {
     hex::encode(result)
 }
 
+#[allow(dead_code)] // 保留: 小数据量的内存校验
 pub fn verify_checksum(data: &[u8], expected: &str) -> Result<bool, ZzmError> {
     let actual = calculate_sha256(data);
     Ok(actual.to_lowercase() == expected.to_lowercase())
+}
+
+/// 流式 SHA256 校验（内存占用恒定，适合大文件）
+pub fn verify_checksum_streaming(path: &std::path::Path, expected: &str) -> Result<bool, ZzmError> {
+    let file = std::fs::File::open(path)?;
+    let mut reader = std::io::BufReader::new(file);
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut reader, &mut hasher)?;
+    let result = format!("{:x}", hasher.finalize());
+    Ok(result.to_lowercase() == expected.to_lowercase())
 }
 
 #[cfg(test)]

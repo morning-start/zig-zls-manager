@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::core::channel::Channel;
 use crate::platform::PlatformTrait;
 use crate::utils::error::ZzmError;
 
@@ -32,7 +33,7 @@ pub struct InstalledZigVersion {
     /// 安装时间 (ISO 8601)
     pub installed_at: String,
     /// 版本通道
-    pub channel: String,
+    pub channel: Channel,
 }
 
 /// 已安装的 ZLS 版本信息
@@ -336,7 +337,7 @@ mod tests {
                 version: "0.13.0".to_string(),
                 install_path: PathBuf::from("/home/user/.zzm/versions/zig/0.13.0"),
                 installed_at: "2026-04-24T10:00:00Z".to_string(),
-                channel: "stable".to_string(),
+                channel: Channel::Stable,
             }],
             zls_versions: vec![],
             active_zig: Some("0.13.0".to_string()),
@@ -356,7 +357,7 @@ mod tests {
                 version: "0.13.0".to_string(),
                 install_path: PathBuf::from("/home/user/.zzm/versions/zig/0.13.0"),
                 installed_at: "2026-04-24T10:00:00Z".to_string(),
-                channel: "stable".to_string(),
+                channel: Channel::Stable,
             }],
             zls_versions: vec![InstalledZlsVersion {
                 version: "0.13.0".to_string(),
@@ -386,13 +387,13 @@ mod tests {
                     version: "0.13.0".to_string(),
                     install_path: PathBuf::from("/home/.zzm/versions/zig/0.13.0"),
                     installed_at: "2026-04-24T10:00:00Z".to_string(),
-                    channel: "stable".to_string(),
+                    channel: Channel::Stable,
                 },
                 InstalledZigVersion {
                     version: "0.12.0".to_string(),
                     install_path: PathBuf::from("/home/.zzm/versions/zig/0.12.0"),
                     installed_at: "2026-04-23T10:00:00Z".to_string(),
-                    channel: "stable".to_string(),
+                    channel: Channel::Stable,
                 },
             ],
             zls_versions: vec![],
