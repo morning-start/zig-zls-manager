@@ -30,22 +30,22 @@ impl AppContext {
         Self { platform }
     }
 
-    /// 创建 ZigManager
+    /// 创建 `ZigManager`
     pub fn zig_manager(&self) -> Result<ZigManager, ZzmError> {
         ZigManager::new(self.platform.clone_box())
     }
 
-    /// 创建 ZlsManager
+    /// 创建 `ZlsManager`
     pub fn zls_manager(&self) -> Result<ZlsManager, ZzmError> {
         ZlsManager::new(self.platform.clone_box())
     }
 
-    /// 创建 PathManager
+    /// 创建 `PathManager`
     pub fn path_manager(&self) -> PathManager {
         PathManager::new(self.platform.clone_box())
     }
 
-    /// 创建 CacheManager
+    /// 创建 `CacheManager`
     pub fn cache_manager(&self) -> CacheManager {
         let path_mgr = self.path_manager();
         CacheManager::new(path_mgr.cache_dir())

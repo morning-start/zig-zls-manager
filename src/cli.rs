@@ -234,7 +234,7 @@ pub enum ConfigCommands {
 
     /// 获取指定配置值
     Get {
-        /// 配置键名 (如 zig.default, zls.install_mode)
+        /// 配置键名 (如 zig.default, `zls.install_mode`)
         key: String,
     },
 

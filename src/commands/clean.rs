@@ -14,7 +14,7 @@ pub async fn cmd_clean(ctx: &AppContext, all: bool, dry_run: bool) -> Result<(),
         } else {
             console_output::print_header("将要清理的文件:");
             for item in &items {
-                println!("  {}", item);
+                println!("  {item}");
             }
             let size = cache_mgr.total_size()?;
             console_output::print_info(&format!(

@@ -16,12 +16,9 @@ pub async fn cmd_setup(
         return Ok(());
     }
 
-    let version = match version {
-        Some(v) => v,
-        None => {
-            console_output::print_warning("请指定版本号或使用 --wizard 参数");
-            return Ok(());
-        }
+    let Some(version) = version else {
+        console_output::print_warning("请指定版本号或使用 --wizard 参数");
+        return Ok(());
     };
 
     // 安装 Zig

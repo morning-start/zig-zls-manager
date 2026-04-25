@@ -24,12 +24,10 @@ pub async fn cmd_info(ctx: &AppContext, _verbose: bool) -> Result<(), ZzmError> 
 
     let zig_version = zig_current
         .as_ref()
-        .map(|v| v.version.clone())
-        .unwrap_or_else(|| "未设置".to_string());
+        .map_or_else(|| "未设置".to_string(), |v| v.version.clone());
     let zls_version = zls_current
         .as_ref()
-        .map(|v| v.version.clone())
-        .unwrap_or_else(|| "未设置".to_string());
+        .map_or_else(|| "未设置".to_string(), |v| v.version.clone());
     let install_dir = platform.default_install_dir().to_string_lossy().to_string();
     let bin_dir = platform.bin_dir().to_string_lossy().to_string();
     let in_path = if platform.is_bin_in_path() {
@@ -86,6 +84,16 @@ pub async fn cmd_doctor(ctx: &AppContext) -> Result<(), ZzmError> {
 
     let platform = ctx.platform();
 
+    check_basic_status(platform);
+    check_installed_versions(ctx, platform);
+    check_windows_specific();
+    check_recommended_config(ctx, platform);
+
+    Ok(())
+}
+
+/// 检查基础状态（平台、目录、PATH 等）
+fn check_basic_status(platform: &dyn crate::platform::PlatformTrait) {
     let checks = [
         (
             "平台",
@@ -140,45 +148,53 @@ pub async fn cmd_doctor(ctx: &AppContext) -> Result<(), ZzmError> {
     ];
 
     for (key, value) in &checks {
-        println!("  {}: {}", key, value);
+        println!("  {key}: {value}");
     }
+}
 
-    // 检查已安装版本
-    if platform.default_install_dir().exists() {
-        let path_mgr = ctx.path_manager();
-        if let Ok(index) = path_mgr.read_installed_index() {
-            println!("  已安装 Zig: {} 个版本", index.zig_versions.len());
-            println!("  已安装 ZLS: {} 个版本", index.zls_versions.len());
-            if let Some(ref active) = index.active_zig {
-                println!("  当前 Zig: {}", active);
-            }
-            if let Some(ref active) = index.active_zls {
-                println!("  当前 ZLS: {}", active);
-            }
+/// 检查已安装版本状态
+fn check_installed_versions(ctx: &AppContext, platform: &dyn crate::platform::PlatformTrait) {
+    if !platform.default_install_dir().exists() {
+        return;
+    }
+    let path_mgr = ctx.path_manager();
+    if let Ok(index) = path_mgr.read_installed_index() {
+        println!("  已安装 Zig: {} 个版本", index.zig_versions.len());
+        println!("  已安装 ZLS: {} 个版本", index.zls_versions.len());
+        if let Some(ref active) = index.active_zig {
+            println!("  当前 Zig: {active}");
+        }
+        if let Some(ref active) = index.active_zls {
+            println!("  当前 ZLS: {active}");
         }
     }
+}
 
-    // Windows 特定检查：UTF-8 编码
-    if cfg!(windows) {
-        println!();
-        println!("  --- Windows 专项检查 ---");
-        let codepage = std::process::Command::new("chcp")
-            .output()
-            .ok()
-            .and_then(|o| String::from_utf8(o.stdout).ok())
-            .unwrap_or_default();
-        let is_utf8 = codepage.contains("65001");
-        if is_utf8 {
-            println!("  UTF-8 代码页: ✓ 已启用 (65001)");
-        } else {
-            println!("  UTF-8 代码页: ✗ 未启用（建议开启以避免中文乱码）");
-            println!(
-                "    设置方式: Windows 设置 → 时间和语言 → 语言和区域 → 管理语言设置 → 更改系统区域设置 → 勾选 \"Beta: 使用 Unicode UTF-8 提供全球语言支持\""
-            );
-        }
+/// Windows 特定检查：UTF-8 编码
+fn check_windows_specific() {
+    if !cfg!(windows) {
+        return;
     }
+    println!();
+    println!("  --- Windows 专项检查 ---");
+    let codepage = std::process::Command::new("chcp")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    let is_utf8 = codepage.contains("65001");
+    if is_utf8 {
+        println!("  UTF-8 代码页: ✓ 已启用 (65001)");
+    } else {
+        println!("  UTF-8 代码页: ✗ 未启用（建议开启以避免中文乱码）");
+        println!(
+            "    设置方式: Windows 设置 → 时间和语言 → 语言和区域 → 管理语言设置 → 更改系统区域设置 → 勾选 \"Beta: 使用 Unicode UTF-8 提供全球语言支持\""
+        );
+    }
+}
 
-    // 推荐的环境变量配置
+/// 检查并输出推荐的环境变量配置
+fn check_recommended_config(ctx: &AppContext, platform: &dyn crate::platform::PlatformTrait) {
     println!();
     println!("  --- 推荐配置 ---");
     let default_dir = platform.default_dir();
@@ -195,6 +211,4 @@ pub async fn cmd_doctor(ctx: &AppContext) -> Result<(), ZzmError> {
             platform.default_install_dir().join("default-zls").display()
         );
     }
-
-    Ok(())
 }

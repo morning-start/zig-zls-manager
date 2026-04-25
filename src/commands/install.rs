@@ -27,5 +27,5 @@ pub async fn cmd_install(
 /// 卸载指定版本
 pub async fn cmd_uninstall(ctx: &AppContext, version: &str) -> Result<(), ZzmError> {
     let manager = ctx.zig_manager()?;
-    manager.uninstall(version).await
+    manager.uninstall(version)
 }

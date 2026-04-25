@@ -20,7 +20,7 @@ pub async fn cmd_ide(ctx: &AppContext, command: cli::IdeCommands) -> Result<(), 
                 console_output::print_warning("Helix 集成将在后续版本中实现");
             }
             _ => {
-                console_output::print_error(&format!("不支持的编辑器: {}", editor));
+                console_output::print_error(&format!("不支持的编辑器: {editor}"));
             }
         },
         cli::IdeCommands::Check => match ide_manager.vscode_settings_path() {
@@ -45,7 +45,7 @@ pub async fn cmd_ide(ctx: &AppContext, command: cli::IdeCommands) -> Result<(), 
                     console_output::print_info("VS Code settings.json 不存在");
                 }
             }
-            Err(e) => console_output::print_warning(&format!("无法检查 VS Code: {}", e)),
+            Err(e) => console_output::print_warning(&format!("无法检查 VS Code: {e}")),
         },
         cli::IdeCommands::Doctor => {
             console_output::print_header("IDE 集成诊断");
@@ -64,7 +64,7 @@ pub async fn cmd_ide(ctx: &AppContext, command: cli::IdeCommands) -> Result<(), 
                 Ok(path) => {
                     console_output::print_info(&format!("VS Code settings: {}", path.display()));
                 }
-                Err(e) => console_output::print_warning(&format!("VS Code: {}", e)),
+                Err(e) => console_output::print_warning(&format!("VS Code: {e}")),
             }
         }
         cli::IdeCommands::Path => {

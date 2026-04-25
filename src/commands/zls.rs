@@ -29,7 +29,7 @@ pub async fn cmd_zls(
                 .await?;
         }
         cli::ZlsCommands::Uninstall { version } => {
-            manager.uninstall(&version).await?;
+            manager.uninstall(&version)?;
         }
         cli::ZlsCommands::List {
             installed: _,

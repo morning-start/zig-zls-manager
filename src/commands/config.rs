@@ -23,13 +23,13 @@ pub async fn cmd_config(ctx: &AppContext, command: cli::ConfigCommands) -> Resul
         cli::ConfigCommands::Get { key } => {
             let value = config_manager.get(&key)?;
             match value {
-                Some(v) => println!("{} = {}", key, v),
-                None => console_output::print_info(&format!("配置项 '{}' 未设置", key)),
+                Some(v) => println!("{key} = {v}"),
+                None => console_output::print_info(&format!("配置项 '{key}' 未设置")),
             }
         }
         cli::ConfigCommands::Set { key, value } => {
             config_manager.set(&key, &value)?;
-            console_output::print_success(&format!("已设置 {} = {}", key, value));
+            console_output::print_success(&format!("已设置 {key} = {value}"));
         }
         cli::ConfigCommands::Edit => {
             let config_path = config_manager.config_path();
@@ -48,8 +48,8 @@ pub async fn cmd_config(ctx: &AppContext, command: cli::ConfigCommands) -> Resul
                 .status();
             match status {
                 Ok(s) if s.success() => console_output::print_success("配置已更新"),
-                Ok(s) => console_output::print_error(&format!("编辑器退出码: {}", s)),
-                Err(e) => console_output::print_error(&format!("无法启动编辑器: {}", e)),
+                Ok(s) => console_output::print_error(&format!("编辑器退出码: {s}")),
+                Err(e) => console_output::print_error(&format!("无法启动编辑器: {e}")),
             }
         }
     }

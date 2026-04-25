@@ -42,10 +42,7 @@ pub fn cmd_completion(shell: &str) -> Result<(), ZzmError> {
         _ => {
             return Err(ZzmError::ConfigError {
                 path: "completion".to_string(),
-                reason: format!(
-                    "不支持的 shell 类型: {}，支持: bash, zsh, fish, powershell",
-                    shell
-                ),
+                reason: format!("不支持的 shell 类型: {shell}，支持: bash, zsh, fish, powershell"),
             });
         }
     }
