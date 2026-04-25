@@ -1,6 +1,7 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
+#[allow(dead_code)] // 部分变体预留给未来功能
 pub enum ZzmError {
     #[error("IO 错误: {0}")]
     Io(#[from] std::io::Error),
@@ -83,4 +84,5 @@ pub enum ZzmError {
     RateLimited { retry_after: u64 },
 }
 
+#[allow(dead_code)] // 预留: 跨模块统一 Result 类型
 pub type Result<T> = std::result::Result<T, ZzmError>;

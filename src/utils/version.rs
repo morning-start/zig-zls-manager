@@ -13,6 +13,7 @@ pub struct Version {
 }
 
 impl Version {
+    #[allow(dead_code)] // 预留: 版本构造 API
     pub fn new(major: u64, minor: u64, patch: u64) -> Self {
         Self {
             major,
@@ -22,11 +23,13 @@ impl Version {
         }
     }
 
+    #[allow(dead_code)] // 预留: 预发布版本构建
     pub fn with_pre(mut self, pre: &str) -> Self {
         self.pre_release = Some(pre.to_string());
         self
     }
 
+    #[allow(dead_code)] // 预留: 版本分类查询
     pub fn is_stable(&self) -> bool {
         self.pre_release.is_none()
     }
