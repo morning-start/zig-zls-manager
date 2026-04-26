@@ -2,7 +2,7 @@
 
 ## 📋 文档信息
 
-- **版本**: v4.0.0
+- **版本**: v4.1.0
 - **更新日期**: 2026-04-26
 - **适用版本**: zig-zls-manager v0.1.0+
 - **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [architecture-optimization-v2.md](./analyses/architecture-optimization-v2.md)
@@ -12,7 +12,7 @@
 
 ---
 
-## ✅ 已完成（Phase 1 架构优化重构）
+## ✅ 已完成（Phase 1 架构优化重构 + Phase 2 阶段 1）
 
 | 任务 | 描述 | 关键变更 |
 |------|------|---------|
@@ -25,29 +25,12 @@
 | T-050 | ToolManager 单元测试 | +24 测试 (157→181) |
 | T-052 | Zig API serde 模型修复 | 重写 `ZigVersionEntry`/`ZigPlatformAsset` 适配实际 API (+6 测试) |
 | T-043 | 数字字面量可读性 | 添加下划线分隔符 |
+| T-060 | Core 层输出解耦 | 新增 `InstallCallbacks` 结构体，`ToolManager`/`CompatibilityChecker` 不再直接调用 `console_output`，Commands 层注入回调 |
+| T-066 | AppContext OnceCell 懒加载 | `PathManager` 改为 `OnceLock` 单例复用，`path_manager()` 返回引用 |
 
 ---
 
 ## 🔴 P0 - 必须完成（架构彻底化 + 核心功能）
-
-### T-060: Core 层输出解耦（回调方案）
-
-- **问题**: `ToolManager` 直接调用 `console_output::print_*`，`--json` 输出被污染，TUI/GUI 不可行
-- **方案**: 引入 `InstallCallbacks` 结构体，Commands 层注入具体输出实现
-- **实现**:
-  ```rust
-  pub struct InstallCallbacks {
-      pub on_step: Box<dyn Fn(usize, usize, &str)>,
-      pub on_success: Box<dyn Fn(&str)>,
-      pub on_warning: Box<dyn Fn(&str)>,
-      pub on_info: Box<dyn Fn(&str)>,
-  }
-  ```
-  - `InstallCallbacks::default()` → 控制台输出
-  - `InstallCallbacks::json()` → 空回调或 JSON 事件收集
-- **涉及文件**: `src/core/tool_manager.rs`, `src/core/compatibility.rs`, `src/commands/*.rs`
-- **工作量**: 2 天 | **风险**: 低
-- **验证**: `cargo test` + 手动 `--json` 测试
 
 ### T-061: 泛型彻底化 — 引入 ToolIndexEntry 统一数据结构
 
@@ -135,22 +118,6 @@
 - **查找策略**: 从当前目录向上递归查找 `.zzmrc`（JSON/TOML），也支持 `.zzm/config.toml` 目录格式
 - **涉及文件**: `src/core/project.rs`（新增/重写）
 - **工作量**: 3 天 | **风险**: 低
-
-### T-066: AppContext OnceCell 懒加载
-
-- **问题**: 每次调用 `zig_manager()`/`zls_manager()` 都创建新实例
-- **方案**: 使用 `OnceLock` 实现单例复用
-- **实现**:
-  ```rust
-  pub struct AppContext {
-      platform: Box<dyn PlatformTrait>,
-      zig_manager: OnceLock<ToolManager<ZigApiClient>>,
-      zls_manager: OnceLock<ToolManager<ZlsApiClient>>,
-      path_manager: OnceLock<PathManager>,
-  }
-  ```
-- **涉及文件**: `src/commands/mod.rs`
-- **工作量**: 0.5 天 | **风险**: 低
 
 ### T-067: `zzm sync` 功能增强
 
@@ -285,17 +252,17 @@
 ## 📐 实施路线图
 
 ```
-阶段 1 ─→ 阶段 2 ──→ 阶段 3 ───→ 阶段 4 ────→ 阶段 5
-T-060     T-061       T-064        T-062         T-067
-T-066     T-064       T-065        T-063         T-068
-(输出     (泛型       (Commands    (Wizard       (sync增强
- 解耦+    彻底化+     数据抽象+    +restore)     +pair)
- OnceCell) Commands)  Project)
+阶段 1 ✅ ─→ 阶段 2 ──→ 阶段 3 ───→ 阶段 4 ────→ 阶段 5
+T-060 ✅      T-061       T-064        T-062         T-067
+T-066 ✅      T-064       T-065        T-063         T-068
+(输出         (泛型       (Commands    (Wizard       (sync增强
+ 解耦+        彻底化+     数据抽象+    +restore)     +pair)
+ OnceCell)   Commands)  Project)
 ```
 
 | 阶段 | 交付内容 | 验证方式 |
 |------|---------|---------|
-| **阶段 1** | T-060 Core 层输出解耦 + T-066 OnceCell | `cargo test` + 手动 `--json` 测试 |
+| **阶段 1** | T-060 Core 层输出解耦 + T-066 OnceCell | ✅ `cargo test` 190/190 + clippy 零警告 |
 | **阶段 2** | T-061 泛型彻底化 + T-064 Commands 数据抽象 | 190+ 测试全通过 + clippy 零警告 |
 | **阶段 3** | T-065 ProjectManager 完整实现 | 创建测试项目，验证 `.zzmrc` 读取/写入 |
 | **阶段 4** | T-062 Interactive Wizard + T-063 restore 命令 | 手动测试新用户体验流程 |
@@ -307,6 +274,7 @@ T-066     T-064       T-065        T-063         T-068
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
+| 2026-04-26 | v4.1.0 | 完成 T-060 Core 层输出解耦(InstallCallbacks) + T-066 AppContext OnceLock 懒加载，阶段 1 完成 |
 | 2026-04-26 | v4.0.0 | 基于 architecture-optimization-v2.md 全面重写：按优先级矩阵(P0-P3)重新组织，新增 T-060~T-083，引入实施路线图(5阶段) |
 | 2026-04-25 | v3.2.0 | 修复 T-052 Zig API serde 模型不匹配，重写适配实际 API 结构(+6测试) |
 | 2026-04-25 | v3.1.0 | 完成 T-050 ToolManager 单元测试(+24)、T-043 数字字面量可读性优化 |
