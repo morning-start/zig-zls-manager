@@ -2,17 +2,17 @@
 
 ## 📋 文档信息
 
-- **版本**: v4.5.0
+- **版本**: v5.1.0
 - **更新日期**: 2026-04-26
 - **适用版本**: zig-zls-manager v0.1.0+
 - **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [architecture-optimization-v2.md](./analyses/architecture-optimization-v2.md)
-- **当前阶段**: Phase 1 MVP + 架构优化重构完成 + P0/P1/P2 全部完成
+- **当前阶段**: Phase 1 MVP + 架构优化重构 + P0/P1 全部完成 + P2 部分完成
 - **编译状态**: ✅ cargo clippy -D warnings 零警告
 - **测试状态**: ✅ 214/214 全部通过
 
 ---
 
-## ✅ 已完成（Phase 1 架构优化重构 + Phase 2 阶段 1）
+## ✅ 已完成
 
 | 任务 | 描述 | 关键变更 |
 |------|------|---------|
@@ -23,143 +23,65 @@
 | T-048 | ApiCache 泛型缓存层 | 新增 `ApiCache<T>` 消除缓存逻辑重复 |
 | T-049 | 流式 SHA256 校验 | `BufReader` 流式校验，内存恒定 |
 | T-050 | ToolManager 单元测试 | +24 测试 (157→181) |
-| T-052 | Zig API serde 模型修复 | 重写 `ZigVersionEntry`/`ZigPlatformAsset` 适配实际 API (+6 测试) |
+| T-052 | Zig API serde 模型修复 | 重写适配实际 API (+6 测试) |
 | T-043 | 数字字面量可读性 | 添加下划线分隔符 |
-| T-061 | 泛型彻底化 — ToolIndexEntry 统一数据结构 | `InstalledIndex` → `HashMap<ToolKind, Vec<ToolIndexEntry>>`，消除 15+ match 分支 |
+| T-061 | 泛型彻底化 — ToolIndexEntry | `InstalledIndex` → `HashMap<ToolKind, Vec<ToolIndexEntry>>`，消除 15+ match 分支 |
 | T-062 | 交互式 Setup Wizard | `cmd_setup_wizard()` 使用 dialoguer 交互式引导 |
 | T-063 | `zzm restore` 命令 | 新增 `ProjectManager` + `restore` 子命令 |
-| T-064 | Commands 层 OutputDispatcher | `OutputRow` trait + `output_list()` 统一调度，消除重复 if json 分支 |
+| T-064 | Commands 层 OutputDispatcher | `OutputRow` trait + `output_list()` 统一调度 |
 | T-065 | ProjectManager 完整实现 | `save`/`set_zig_version`/`set_zls_version`/`resolve_zls_version`/`is_version_installed` |
-| T-066 | AppContext OnceCell 懒加载 | `PathManager` 改为 `OnceLock` 单例复用，`path_manager()` 返回引用 |
+| T-066 | AppContext OnceCell 懒加载 | `PathManager` 改为 `OnceLock` 单例复用 |
 | T-067 | `zzm sync` 功能增强 | 兼容性矩阵推荐 + dry-run + LikelyCompatible 状态处理 |
-| T-068 | `zzm pair` 命令 | 手动绑定 Zig↔ZLS 版本关系，写入 .zzmrc，`--show`/`--zls`/`--compatibility` |
+| T-068 | `zzm pair` 命令 | 手动绑定 Zig↔ZLS 版本关系，写入 .zzmrc |
+| T-070 | PostInstallHook Trait 抽象 | `VersionProvider::post_install_hook()` 默认实现，消除 `if kind == Zls` 硬编码 |
+| T-071 | 索引读取合并优化 | `install()` 3→1 次，`use_version()` 2→1 次 |
+| T-072 | 符号链接操作合并 | 4 个方法合并为 `update_version_symlinks()` + `remove_version_symlinks()` |
+| T-074 | `zzm prune` 移除旧版本 | `PrunableVersion(OutputRow)` + `batch_uninstall` + 交互确认 |
+| T-076 | `zzm doctor` 诊断增强 | 环境变量/符号链接有效性/磁盘空间/兼容性检查 |
+| #006 | 并行下载 Zig+ZLS | `download_only()` + `install_from_cache()` + `tokio::join!` |
 
 ---
 
-## 🔴 P0 - 必须完成（架构彻底化 + 核心功能）
+## 🟢 P2 - 代码质量 + 辅助功能（2 项待完成）
 
-### T-061: ~~泛型彻底化 — 引入 ToolIndexEntry 统一数据结构~~ ✅ 已完成
+### #007: install 原子性（并行下载回滚）
 
-- **问题**: `InstalledIndex` 内部双份数据结构（`zig_versions` + `zls_versions`），导致 15+ 个 `match self.kind` 分支
-- **方案**: 引入 `ToolIndexEntry` + `ToolExtraData` 统一数据层
-- **实现**:
-  ```rust
-  pub struct ToolIndexEntry {
-      pub version: String,
-      pub install_path: PathBuf,
-      pub installed_at: String,
-      pub extra: ToolExtraData,
-  }
-  pub enum ToolExtraData {
-      Zig { channel: Channel },
-      Zls { zig_version: Option<String> },
-  }
-  // InstalledIndex 改为:
-  pub struct InstalledIndex {
-      pub tools: HashMap<ToolKind, Vec<ToolIndexEntry>>,
-      pub active: HashMap<ToolKind, String>,
-  }
-  ```
-- **收益**: 12+ 索引方法统一实现，消除所有 `match` 分支；新增工具只需添加 `ToolExtraData` 变体
-- **风险**: `installed.json` 序列化格式变化，需提供旧格式兼容读取迁移策略
-- **涉及文件**: `src/core/tool_manager.rs`, `src/infra/path_manager.rs`
-- **工作量**: 5 天 | **风险**: 中
-- **验证**: 190+ 测试全通过 + clippy 零警告 + 旧索引文件兼容读取
+- **问题**: 并行下载 Zig+ZLS 后，若 ZLS 安装失败，Zig 已安装但未回滚，导致不一致状态
+- **方案**: `install_from_cache` 失败时回滚已安装的工具版本（删除解压目录 + 从索引移除）
+- **实现策略**:
+  - `cmd_install` 中 ZLS 安装失败 → 回滚 Zig 安装（调用 `uninstall`）
+  - `execute_install_plan` 同理
+  - 新增 `RollbackGuard` 结构体，析构时自动回滚（RAII 模式）
+- **涉及文件**: `src/commands/install.rs`, `src/commands/setup.rs`
+- **工作量**: 1 天 | **风险**: 低
 
-### T-062: ~~交互式 Setup Wizard~~ ✅ 已完成
+### T-025: 编写集成测试
 
-- **问题**: `spec.md` US-01 定义但未实现
-- **方案**: 交互式引导用户选择 Zig 版本 → 推荐 ZLS 版本 → 确认安装 → 配置 IDE
-- **实现**: 使用 `dialoguer` 实现交互式向导，支持远程版本列表选择、ZLS 兼容推荐、IDE 配置、PATH 提示
-- **涉及文件**: `src/commands/setup.rs`（重写）
+- **问题**: `tests/integration/` 目录为空，核心流程缺乏端到端验证
+- **目标**: 使用 tempfile 创建临时环境，验证完整安装/切换/卸载流程
+- **测试用例**:
+  - `test_install_and_use_flow`: 安装 → 切换 → 验证符号链接 → 卸载
+  - `test_parallel_download_flow`: 并行下载 Zig+ZLS → 验证两者均安装成功
+  - `test_config_persistence`: 配置读写 + .zzmrc 项目级配置
+  - `test_doctor_diagnostics`: doctor 诊断输出验证
+- **涉及文件**: `tests/integration/`（新增）
 - **工作量**: 3 天 | **风险**: 低
-- **验证**: clippy 零警告 + 194 测试全通过
-
-### T-063: ~~`zzm restore` 命令~~ ✅ 已完成
-
-- **问题**: `spec.md` US-04 定义但未实现
-- **方案**: 读取项目 `.zzmrc` 配置 → 安装缺失的 Zig/ZLS 版本 → 切换到项目指定版本
-- **实现**: 新增 `ProjectManager` 支持 `.zzmrc`/`.zzm/config.toml` 递归查找（JSON/TOML 双格式），`restore` 命令自动安装+切换
-- **涉及文件**: `src/core/project.rs`（新增）, `src/commands/restore.rs`（新增）, `src/cli.rs`, `src/main.rs`
-- **工作量**: 2 天 | **风险**: 低
-- **验证**: clippy 零警告 + 202 测试全通过（+8 project 模块测试）
 
 ---
 
-## 🟡 P1 - 应该完成（架构完善 + 重要功能）— ✅ 全部完成
+## 🔵 P3 - 体验优化 + 边缘场景
 
-### T-064: ~~Commands 层数据转换抽象（OutputDispatcher）~~ ✅ 已完成
+### T-075: `zzm update self` 自我更新
 
-- **问题**: 4 个命令重复"数据转换 + 输出调度"逻辑（`if json { json_output } else { table_output }`）
-- **方案**: 提取 `OutputRow` trait + `output_list()` 统一调度函数
-- **实现**:
-  - 新增 `src/output/dispatcher.rs`：`OutputRow` trait + `output_list()`/`output_single()`/`output_json_if()` 三级调度
-  - 重写 `src/output/table_output.rs`：`RemoteVersionOutput`/`InstalledVersionOutput` 实现 OutputRow
-  - 重构 `src/commands/list.rs`、`src/commands/zls.rs`：使用 dispatcher 替代手动 if json 分支
-- **涉及文件**: `src/output/dispatcher.rs`(新增), `src/output/table_output.rs`(重写), `src/commands/list.rs`, `src/commands/zls.rs`
-- **验证**: 214 测试全通过 + clippy 零警告
-
-### T-065: ~~ProjectManager 完整实现~~ ✅ 已完成
-
-- **问题**: `.zzmrc` 项目级配置是核心差异化功能，当前为空壳
-- **方案**: 实现完整的 `ProjectManager`
-- **实现**:
-  - `save()`: 覆盖写入项目配置（自动创建）
-  - `set_zig_version()`/`set_zls_version()`: 增量更新配置字段
-  - `resolve_zls_version()`: 统一 ZLS 版本解析（显式指定 > Auto 推荐 > None）
-  - `is_version_installed()`: 静态方法检查版本安装状态
-  - `RestoreResult` 补充 `has_changes()` 方法
-- **涉及文件**: `src/core/project.rs`(重写), `src/commands/restore.rs`(重构)
-- **验证**: +6 新测试 (save/set/resolve/restore_result/compatibility_equality)
-
-### T-067: ~~`zzm sync` 功能增强~~ ✅ 已完成
-
-- **问题**: 当前 sync 功能过于简单，未基于兼容性矩阵推荐最优组合
-- **方案**: 增强为完整的兼容性检查 + 推荐安装流程
-- **实现**:
-  - 新增 `LikelyCompatible` 状态处理（可能兼容→提示但不强制）
-  - `--dry-run` 仅展示推荐操作，不实际执行
-  - 未指定 ZLS 时自动推荐兼容版本
-- **涉及文件**: `src/commands/setup.rs`（`cmd_sync` 重写）
-- **验证**: clippy 零警告
-
-### T-068: ~~`zzm pair` 手动绑定版本关系~~ ✅ 已完成
-
-- **问题**: `spec.md` §2.1.3 定义但未实现
-- **方案**: 新增 `zzm pair` 子命令，手动绑定 Zig↔ZLS 版本关系
-- **实现**:
-  - `zzm pair <zig_version>`: 绑定版本组合到 .zzmrc
-  - `--zls <version>`: 手动指定 ZLS 版本（不指定则自动推荐）
-  - `--compatibility <mode>`: 设置兼容性模式（strict/loose/auto，默认 auto）
-  - `--show`: 显示当前项目绑定
-  - 已有 .zzmrc 时更新而非覆盖
-- **涉及文件**: `src/commands/pair.rs`(新增), `src/cli.rs`, `src/main.rs`
-- **验证**: clippy 零警告
-
----
-
-## 🟢 P2 - 可以完成（代码质量 + 辅助功能）— ✅ 部分完成
-
-### T-070: ~~PostInstallHook Trait 抽象~~ ✅ 已完成
-
-- **问题**: `post_install()` 用 `if self.kind == ToolKind::Zls` 硬编码特例
-- **方案**: `VersionProvider` trait 新增 `post_install_hook()` 方法，ZlsApiClient 实现二进制查找逻辑，ZigApiClient 使用默认实现（设置可执行权限）
-- **涉及文件**: `src/core/tool_manager.rs`, `src/infra/zig_api.rs`, `src/infra/zls_api.rs`
-- **验证**: 214 测试全通过 + clippy 零警告
-
-### T-071: ~~索引读取合并优化~~ ✅ 已完成
-
-- **问题**: `install()` 中 `installed.json` 读取 3 次，`use_version()` 中读取 2 次
-- **方案**: 合并读取逻辑，单次读取后传递可变引用；新增 `remove_installed_from_index()` 辅助方法
-- **涉及文件**: `src/core/tool_manager.rs`
-- **验证**: clippy 零警告
-
-### T-072: ~~符号链接操作合并~~ ✅ 已完成
-
-- **问题**: `use_version()` 连续调用 4 个符号链接方法
-- **方案**: 合并为 `update_version_symlinks()` 和 `remove_version_symlinks()` 两个方法
-- **涉及文件**: `src/core/tool_manager.rs`
-- **验证**: clippy 零警告
+- **问题**: `spec.md` §2.3.2 定义但未实现，用户需手动下载新版本
+- **方案**: 从 GitHub Releases 检测新版本 → 下载替换当前二进制
+- **实现策略**:
+  - `zzm update self`: 检查 GitHub Releases 最新版本
+  - 下载新二进制到临时文件 → 原子替换（rename）
+  - Windows 需特殊处理（运行中二进制不可替换 → 用 shim/重命名策略）
+  - `--check` 仅检查不更新，`--force` 跳过版本比较
+- **涉及文件**: `src/commands/update.rs`（新增）
+- **工作量**: 2 天 | **风险**: 中（跨平台二进制替换）
 
 ### T-073: ConfigManager 自动字段映射
 
@@ -168,64 +90,24 @@
 - **涉及文件**: `src/core/config.rs`
 - **工作量**: 2 天 | **风险**: 中
 
-### T-074: ~~`zzm prune` 移除旧版本~~ ✅ 已完成
-
-- **问题**: `spec.md` §2.3.2 定义但未实现
-- **方案**: 列出非激活版本 → 确认 → 批量卸载
-- **实现**:
-  - 新增 `src/commands/prune.rs`：`cmd_prune()` 支持 `--dry-run` 和交互确认
-  - `PrunableVersion` 实现 `OutputRow` trait（复用 OutputDispatcher）
-  - `batch_uninstall()` 批量卸载 + 估算释放空间
-  - CLI: 新增 `Prune { --dry-run, --confirm }` 子命令
-- **涉及文件**: `src/commands/prune.rs`(新增), `src/commands/mod.rs`, `src/cli.rs`, `src/main.rs`
-- **验证**: clippy 零警告
-
-### T-075: `zzm update self` 自我更新
-
-- **问题**: `spec.md` §2.3.2 定义但未实现
-- **方案**: 从 GitHub Releases 检测新版本 → 下载替换当前二进制
-- **涉及文件**: `src/commands/update.rs`（新增）
-- **工作量**: 2 天 | **风险**: 中
-
-### T-076: ~~`zzm doctor` 诊断增强~~ ✅ 已完成
-
-- **问题**: 当前检查项不全
-- **方案**: 补充环境变量、符号链接有效性、磁盘空间、兼容性等检查项
-- **实现**:
-  - 新增 `check_environment_variables()`: ZIG_HOME/ZLS_HOME/ZZM_ROOT/GITHUB_TOKEN/HTTP_PROXY/HTTPS_PROXY
-  - 新增 `check_symlink_validity()`: bin 目录 zig/zls 符号链接、default/default-zls 目录目标有效性
-  - 新增 `check_disk_space()`: 已安装版本数 + 缓存大小
-  - 新增 `check_compatibility()`: 当前 Zig↔ZLS 兼容性状态 + 推荐建议
-- **涉及文件**: `src/commands/info.rs`
-- **验证**: clippy 零警告
-
-### T-025: 编写集成测试
-
-- **问题**: `tests/integration/` 目录为空
-- **目标**: `test_install_flow.rs`, `test_switch_flow.rs`, `test_ide_integration.rs`，使用 tempfile 创建临时环境
-- **工作量**: 3 天 | **风险**: 低
-
----
-
-## 🔵 P3 - 未来考虑（体验优化 + 边缘场景）
-
 ### T-080: Shell 自动补全生成
 
 - **问题**: `spec.md` §2.3.3 定义但未实现
-- **方案**: clap 自带 `clap_complete` 生成 Bash/Zsh/Fish/PowerShell 补全脚本
-- **工作量**: 1 天
+- **方案**: 新增 `zzm completion <shell>` 子命令，使用 `clap_complete::generate()` 动态生成
+- **工作量**: 1 天 | **风险**: 低
 
 ### T-081: 清理 dead_code 标注
 
-- **问题**: `PlatformTrait` 有 3 个 `#[allow(dead_code)]` 方法未实现
-- **方案**: 系统性审查——要么实现，要么用 `cfg(feature)` 控制
+- **问题**: 多处 `#[allow(dead_code)]` 遮盖了未实现的功能
+- **方案**: 系统性审查——实现、删除或用 `cfg(feature)` 控制
+- **涉及文件**: `src/platform/trait_def.rs`, `src/core/tool_manager.rs`, `src/infra/downloader.rs` 等
 - **工作量**: 1 天
 
 ### T-082: 兼容性矩阵远程更新
 
-- **问题**: 兼容性规则硬编码在本地
-- **方案**: 从 GitHub 拉取最新兼容性规则并缓存
-- **工作量**: 2 天
+- **问题**: 兼容性规则硬编码在本地，Zig/ZLS 新版本发布后需手动更新代码
+- **方案**: 从 GitHub 拉取最新兼容性规则并缓存（TTL: 24h），远程不可用时回退到内置规则
+- **工作量**: 2 天 | **风险**: 低
 
 ### T-083: IDE 配置自动检测
 
@@ -237,59 +119,64 @@
 
 - **问题**: `IdeConfig` 所有字段都有 `vscode` 前缀，clippy 建议拆分
 - **方案**: 拆分为嵌套结构体 `VsCodeConfig`
-- **涉及文件**: `src/core/config.rs:70`
+- **涉及文件**: `src/core/config.rs`
+
+---
+
+## ⚪ 边缘场景 & 遗留问题
 
 ### #002: Windows 长路径问题
 
-- MAX_PATH 限制，可能影响深层目录操作
+- **问题**: Windows MAX_PATH (260) 限制，深层目录可能超限
+- **方案**: 使用 `\\?\` 前缀扩展路径限制
+- **优先级**: 低
 
 ### #003: 代理服务器支持
 
-- HTTP_PROXY 环境变量未处理
+- **问题**: `reqwest::Client` 未读取 HTTP_PROXY/HTTPS_PROXY 环境变量
+- **方案**: 使用 `reqwest::ClientBuilder::default_proxy(true)` 启用系统代理
+- **优先级**: 中 | **工作量**: 0.5 天
 
 ### #004: 离线模式支持
 
-- 纯本地操作模式未实现
-
-### #006: 并行下载 Zig + ZLS
-
-- 当前串行，应改为 `tokio::join!`
-
-### #007: install 原子性
-
-- 任一失败需回滚两者
+- **问题**: 无网络时命令仍尝试网络请求
+- **方案**: 检测网络可用性，离线时跳过远程请求，仅使用本地缓存
+- **优先级**: 低
 
 ---
 
 ## 📐 实施路线图
 
 ```
-阶段 1 ✅ ─→ 阶段 2 ✅ ──→ 阶段 3 ───→ 阶段 4 ✅ ──→ 阶段 5
-T-060 ✅      T-061 ✅       T-064        T-062 ✅       T-067
-T-066 ✅      T-064         T-065        T-063 ✅       T-068
-(输出         (泛型         (Commands    (Wizard       (sync增强
- 解耦+        彻底化+       数据抽象+    +restore)     +pair)
+阶段 1 ✅ ─→ 阶段 2 ✅ ──→ 阶段 3 ✅ ──→ 阶段 4 ✅ ──→ 阶段 5 ───→ 阶段 6
+T-060 ✅      T-061 ✅       T-064 ✅       T-062 ✅       #007          T-075
+T-066 ✅      T-064 ✅       T-065 ✅       T-063 ✅       T-025         P3 项
+(输出         (泛型         (Commands      (Wizard       (原子性+       (自我更新+
+ 解耦+        彻底化+       数据抽象+      +restore)     集成测试)     体验优化)
  OnceCell)   Commands)    Project)
 ```
 
-| 阶段 | 交付内容 | 验证方式 |
-|------|---------|---------|
-| **阶段 1** | T-060 Core 层输出解耦 + T-066 OnceCell | ✅ `cargo test` 190/190 + clippy 零警告 |
-| **阶段 2** | T-061 泛型彻底化 + T-064 Commands 数据抽象 | 194+ 测试全通过 + clippy 零警告 |
-| **阶段 3** | T-065 ProjectManager 完整实现 | 创建测试项目，验证 `.zzmrc` 读取/写入 |
-| **阶段 4** | T-062 Interactive Wizard + T-063 restore 命令 | ✅ 202 测试全通过 + clippy 零警告 |
-| **阶段 5** | T-067 sync 增强 + T-068 pair 命令 + P2/P3 项 | 手动测试 + 集成测试 |
+| 阶段 | 交付内容 | 状态 |
+|------|---------|------|
+| **阶段 1** | T-060 Core 层输出解耦 + T-066 OnceCell | ✅ 完成 |
+| **阶段 2** | T-061 泛型彻底化 + T-064 Commands 数据抽象 | ✅ 完成 |
+| **阶段 3** | T-065 ProjectManager 完整实现 | ✅ 完成 |
+| **阶段 4** | T-062 Interactive Wizard + T-063 restore 命令 | ✅ 完成 |
+| **阶段 5** | #007 install 原子性 + T-025 集成测试 | ⬜ 待做 |
+| **阶段 6** | T-075 自我更新 + P3 体验优化项 | ⬜ 待规划 |
 
 ---
 
-## 📝 变更日志
+## � 变更日志
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
-| 2026-04-26 | v4.5.0 | 完成 T-070 PostInstallHook Trait 抽象 + T-071 索引读取合并优化 + T-072 符号链接操作合并 + T-074 prune 命令 + T-076 doctor 诊断增强，P2 部分完成 |
-| 2026-04-26 | v4.3.0 | 完成 T-062 交互式 Setup Wizard（dialoguer 向导）+ T-063 restore 命令（ProjectManager + .zzmrc），P0 全部完成 |
-| 2026-04-26 | v4.2.0 | 完成 T-061 泛型彻底化：ToolIndexEntry + ToolExtraData 统一数据结构，InstalledIndex → HashMap<ToolKind, _>，消除 15+ match 分支，旧格式兼容迁移，Channel rename_all(lowercase) |
-| 2026-04-26 | v4.0.0 | 基于 architecture-optimization-v2.md 全面重写：按优先级矩阵(P0-P3)重新组织，新增 T-060~T-083，引入实施路线图(5阶段) |
-| 2026-04-25 | v3.2.0 | 修复 T-052 Zig API serde 模型不匹配，重写适配实际 API 结构(+6测试) |
-| 2026-04-25 | v3.1.0 | 完成 T-050 ToolManager 单元测试(+24)、T-043 数字字面量可读性优化 |
-| 2026-04-25 | v3.0.0 | 完成 T-044~T-049 架构优化重构：ToolManager 泛型抽象、统一 Channel/目标三元组/版本解析、ApiCache 泛型缓存、流式校验 |
+| 2026-04-26 | v5.1.0 | 精简 TODO：移除已完成项详细描述，保留表格；移除重复路线图；P2 仅剩 #007 + T-025 |
+| 2026-04-26 | v5.0.0 | 完成 #006 并行下载，重新规划：#007 提升为 P2，T-075 降为 P3，新增阶段 6 |
+| 2026-04-26 | v4.5.0 | 完成 T-070/T-071/T-072/T-074/T-076，P2 部分完成 |
+| 2026-04-26 | v4.3.0 | 完成 T-062 Setup Wizard + T-063 restore 命令，P0 全部完成 |
+| 2026-04-26 | v4.2.0 | 完成 T-061 泛型彻底化：ToolIndexEntry + ToolExtraData 统一数据结构 |
+| 2026-04-26 | v4.0.0 | 基于 architecture-optimization-v2.md 全面重写，新增 T-060~T-083 |
+| 2026-04-25 | v3.2.0 | 修复 T-052 Zig API serde 模型不匹配 |
+| 2026-04-25 | v3.1.0 | 完成 T-050 ToolManager 单元测试(+24)、T-043 数字字面量可读性 |
+| 2026-04-25 | v3.0.0 | 完成 T-044~T-049 架构优化重构 |
