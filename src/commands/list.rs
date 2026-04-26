@@ -1,4 +1,5 @@
 use crate::commands::AppContext;
+use crate::core::callbacks::InstallCallbacks;
 use crate::output::console_output;
 use crate::output::json_output;
 use crate::output::table_output::{
@@ -13,8 +14,14 @@ pub async fn cmd_list(
     remote: bool,
     json: bool,
 ) -> Result<(), ZzmError> {
+    let callbacks = if json {
+        InstallCallbacks::silent()
+    } else {
+        InstallCallbacks::console()
+    };
+
     if remote {
-        let manager = ctx.zig_manager()?;
+        let manager = ctx.zig_manager(callbacks)?;
         let versions = manager.list_remote().await?;
 
         if json {
@@ -34,7 +41,7 @@ pub async fn cmd_list(
         }
     } else {
         // 默认显示已安装版本
-        let manager = ctx.zig_manager()?;
+        let manager = ctx.zig_manager(callbacks)?;
         let versions = manager.list_installed()?;
         let path_mgr = ctx.path_manager();
         let index = path_mgr.read_installed_index()?;
@@ -69,8 +76,13 @@ pub async fn cmd_list(
 
 /// 显示当前版本
 pub async fn cmd_current(ctx: &AppContext, json: bool) -> Result<(), ZzmError> {
-    let zig_manager = ctx.zig_manager()?;
-    let zls_manager = ctx.zls_manager()?;
+    let callbacks = if json {
+        InstallCallbacks::silent()
+    } else {
+        InstallCallbacks::console()
+    };
+    let zig_manager = ctx.zig_manager(callbacks)?;
+    let zls_manager = ctx.zls_manager(InstallCallbacks::console())?;
 
     let zig_current = zig_manager.current()?;
     let zls_current = zls_manager.current()?;

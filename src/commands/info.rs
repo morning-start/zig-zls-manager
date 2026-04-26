@@ -1,4 +1,5 @@
 use crate::commands::AppContext;
+use crate::core::callbacks::InstallCallbacks;
 use crate::output::console_output;
 use crate::output::table_output::render_kv_table;
 use crate::platform;
@@ -12,8 +13,8 @@ pub async fn cmd_info(ctx: &AppContext, _verbose: bool) -> Result<(), ZzmError> 
         env!("CARGO_PKG_VERSION")
     ));
 
-    let zig_manager = ctx.zig_manager()?;
-    let zls_manager = ctx.zls_manager()?;
+    let zig_manager = ctx.zig_manager(InstallCallbacks::console())?;
+    let zls_manager = ctx.zls_manager(InstallCallbacks::console())?;
     let path_mgr = ctx.path_manager();
     let platform = ctx.platform();
 

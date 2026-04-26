@@ -1,4 +1,5 @@
 use crate::commands::AppContext;
+use crate::core::callbacks::InstallCallbacks;
 use crate::utils::error::ZzmError;
 
 /// 安装指定版本的 Zig（可同时安装 ZLS）
@@ -7,15 +8,26 @@ pub async fn cmd_install(
     version: &str,
     with_zls: bool,
     force: bool,
+    json: bool,
 ) -> Result<(), ZzmError> {
-    let manager = ctx.zig_manager()?;
+    let callbacks = if json {
+        InstallCallbacks::silent()
+    } else {
+        InstallCallbacks::console()
+    };
+    let manager = ctx.zig_manager(callbacks)?;
 
     // 安装 Zig
     let zig_installed = manager.install(version, force, None).await?;
 
     // 如果指定 --with-zls，同时安装兼容的 ZLS
     if with_zls {
-        let zls_manager = ctx.zls_manager()?;
+        let callbacks = if json {
+            InstallCallbacks::silent()
+        } else {
+            InstallCallbacks::console()
+        };
+        let zls_manager = ctx.zls_manager(callbacks)?;
         let compat_info = zls_manager
             .api_client()
             .find_compatible_version(zig_installed.version())
@@ -29,7 +41,12 @@ pub async fn cmd_install(
 }
 
 /// 卸载指定版本
-pub async fn cmd_uninstall(ctx: &AppContext, version: &str) -> Result<(), ZzmError> {
-    let manager = ctx.zig_manager()?;
+pub async fn cmd_uninstall(ctx: &AppContext, version: &str, json: bool) -> Result<(), ZzmError> {
+    let callbacks = if json {
+        InstallCallbacks::silent()
+    } else {
+        InstallCallbacks::console()
+    };
+    let manager = ctx.zig_manager(callbacks)?;
     manager.uninstall(version)
 }

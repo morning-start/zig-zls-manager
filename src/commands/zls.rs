@@ -1,5 +1,6 @@
 use crate::cli;
 use crate::commands::AppContext;
+use crate::core::callbacks::InstallCallbacks;
 use crate::output::console_output;
 use crate::output::json_output;
 use crate::output::table_output::{
@@ -13,7 +14,12 @@ pub async fn cmd_zls(
     command: cli::ZlsCommands,
     json: bool,
 ) -> Result<(), ZzmError> {
-    let manager = ctx.zls_manager()?;
+    let callbacks = if json {
+        InstallCallbacks::silent()
+    } else {
+        InstallCallbacks::console()
+    };
+    let manager = ctx.zls_manager(callbacks)?;
 
     match command {
         cli::ZlsCommands::Install {
