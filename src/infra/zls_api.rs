@@ -373,9 +373,77 @@ fn find_matching_zls_asset(assets: &[GithubAsset], target_triple: &str) -> Optio
         .cloned()
 }
 
+// ========== ZLS 二进制查找辅助 ==========
+
+/// 在版本目录中查找 zls/zls.exe 并复制到预期位置
+fn find_and_link_zls_binary(
+    version_dir: &std::path::Path,
+    binary_path: &std::path::Path,
+) -> Result<(), ZzmError> {
+    // 在版本目录中搜索 zls 或 zls.exe
+    if let Ok(entries) = std::fs::read_dir(version_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if name == "zls" || name == "zls.exe" {
+                    if path != binary_path {
+                        std::fs::copy(&path, binary_path).map_err(ZzmError::Io)?;
+                    }
+                    crate::infra::filesystem::set_executable(binary_path)?;
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    // 在子目录中搜索
+    if let Ok(entries) = std::fs::read_dir(version_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir()
+                && let Ok(sub_entries) = std::fs::read_dir(&path)
+            {
+                for sub_entry in sub_entries.flatten() {
+                    let sub_path = sub_entry.path();
+                    if sub_path.is_file() {
+                        let name = sub_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                        if name == "zls" || name == "zls.exe" {
+                            std::fs::copy(&sub_path, binary_path).map_err(ZzmError::Io)?;
+                            crate::infra::filesystem::set_executable(binary_path)?;
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Err(ZzmError::ExtractionFailed {
+        path: version_dir.to_string_lossy().to_string(),
+        reason: "未找到 ZLS 二进制文件".to_string(),
+    })
+}
+
 // ========== VersionProvider 实现 ==========
 
 impl crate::core::tool_manager::VersionProvider for ZlsApiClient {
+    /// ZLS 安装后钩子：设置可执行权限，如果二进制不在预期位置则查找并链接
+    fn post_install_hook(
+        &self,
+        version_dir: &std::path::Path,
+        binary_path: &std::path::Path,
+    ) -> Result<(), ZzmError> {
+        // 如果二进制文件已在预期位置，只需设置权限
+        if binary_path.exists() {
+            crate::infra::filesystem::set_executable(binary_path)?;
+            return Ok(());
+        }
+
+        // ZLS 的二进制文件可能没有版本后缀，需要在版本目录中查找
+        find_and_link_zls_binary(version_dir, binary_path)
+    }
+
     async fn get_version_info(
         &self,
         version: &str,
