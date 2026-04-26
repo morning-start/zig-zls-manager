@@ -140,6 +140,30 @@ pub enum Commands {
         dry_run: bool,
     },
 
+    /// 手动绑定 Zig↔ZLS 版本关系
+    Pair {
+        /// Zig 版本号
+        zig_version: String,
+
+        /// ZLS 版本号（可选，不指定则自动推荐）
+        #[arg(long)]
+        zls: Option<String>,
+
+        /// 兼容性模式: strict, loose, auto（默认 auto）
+        #[arg(long)]
+        compatibility: Option<String>,
+
+        /// 显示当前项目的版本绑定
+        #[arg(long)]
+        show: bool,
+    },
+
+    /// 从项目 .zzmrc 还原开发环境
+    Restore {
+        /// 项目目录路径（默认为当前目录）
+        dir: Option<String>,
+    },
+
     /// 显示当前环境详细信息
     Info {
         /// 显示更多详细信息

@@ -86,6 +86,26 @@ async fn run(cli: Cli) -> Result<(), utils::error::ZzmError> {
             wizard,
         } => commands::setup::cmd_setup(&ctx, version, with_zls, wizard, cli.json).await,
         cli::Commands::Sync { dry_run } => commands::setup::cmd_sync(&ctx, dry_run, cli.json).await,
+        cli::Commands::Pair {
+            zig_version,
+            zls,
+            compatibility,
+            show,
+        } => {
+            if show {
+                commands::pair::cmd_pair_show(&ctx, cli.json).await
+            } else {
+                commands::pair::cmd_pair(
+                    &ctx,
+                    &zig_version,
+                    zls.as_deref(),
+                    compatibility.as_deref(),
+                    cli.json,
+                )
+                .await
+            }
+        }
+        cli::Commands::Restore { dir } => commands::restore::cmd_restore(&ctx, dir, cli.json).await,
         cli::Commands::Info { verbose } => commands::info::cmd_info(&ctx, verbose).await,
         cli::Commands::Config { command } => commands::config::cmd_config(&ctx, command).await,
         cli::Commands::Ide { command } => commands::ide::cmd_ide(&ctx, command).await,
