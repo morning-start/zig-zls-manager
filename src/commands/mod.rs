@@ -5,6 +5,8 @@ pub mod ide;
 pub mod info;
 pub mod install;
 pub mod list;
+pub mod pair;
+pub mod restore;
 pub mod setup;
 pub mod version_use;
 pub mod zls;

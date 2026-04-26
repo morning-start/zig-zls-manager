@@ -2,10 +2,8 @@ use crate::commands::AppContext;
 use crate::core::callbacks::InstallCallbacks;
 use crate::core::tool_manager::ToolKind;
 use crate::output::console_output;
-use crate::output::json_output;
-use crate::output::table_output::{
-    InstalledVersionRow, RemoteVersionRow, render_installed_table, render_remote_table,
-};
+use crate::output::dispatcher::{output_json_if, output_list};
+use crate::output::table_output::{RemoteVersionOutput, build_installed_rows};
 use crate::utils::error::ZzmError;
 
 /// 列出版本信息
@@ -24,52 +22,25 @@ pub async fn cmd_list(
     if remote {
         let manager = ctx.zig_manager(callbacks)?;
         let versions = manager.list_remote().await?;
-
-        if json {
-            json_output::print_json(&versions)?;
-        } else {
-            let rows: Vec<RemoteVersionRow> = versions
-                .iter()
-                .map(|v| RemoteVersionRow {
-                    version: v.version.clone(),
-                    channel: v.channel.to_string(),
-                    date: v.date.clone().unwrap_or_default(),
-                    size: v.asset.as_ref().map(|a| a.size.clone()).unwrap_or_default(),
-                    installed: String::new(), // TODO: 交叉检查
-                })
-                .collect();
-            render_remote_table(&rows);
-        }
+        let rows: Vec<RemoteVersionOutput> =
+            versions.iter().map(RemoteVersionOutput::from).collect();
+        output_list(&rows, json, None);
     } else {
         // 默认显示已安装版本
         let manager = ctx.zig_manager(callbacks)?;
         let versions = manager.list_installed()?;
         let path_mgr = ctx.path_manager();
         let index = path_mgr.read_installed_index()?;
+        let active = index.get_active(ToolKind::Zig);
+        let rows = build_installed_rows(&versions, ToolKind::Zig, active);
 
         if json {
-            json_output::print_json(&versions)?;
-        } else if versions.is_empty() {
+            output_json_if(&rows, json)?;
+        } else if rows.is_empty() {
             console_output::print_info("没有已安装的 Zig 版本");
             console_output::print_info("使用 zzm install <version> 安装版本");
         } else {
-            let rows: Vec<InstalledVersionRow> = versions
-                .iter()
-                .map(|v| {
-                    let is_active = index.get_active(ToolKind::Zig) == Some(v.version.as_str());
-                    InstalledVersionRow {
-                        version: v.version.clone(),
-                        channel: v.channel().map(|c| c.to_string()).unwrap_or_default(),
-                        path: v.install_path.to_string_lossy().to_string(),
-                        status: if is_active {
-                            "=> 当前".to_string()
-                        } else {
-                            String::new()
-                        },
-                    }
-                })
-                .collect();
-            render_installed_table(&rows);
+            output_list(&rows, false, None);
         }
     }
     Ok(())
@@ -101,7 +72,7 @@ pub async fn cmd_current(ctx: &AppContext, json: bool) -> Result<(), ZzmError> {
                 "zig_version": v.zig_version(),
             })),
         });
-        json_output::print_json(&result)?;
+        crate::output::json_output::print_json(&result)?;
     } else {
         match &zig_current {
             Some(v) => console_output::print_success(&format!(

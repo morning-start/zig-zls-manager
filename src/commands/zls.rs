@@ -3,10 +3,8 @@ use crate::commands::AppContext;
 use crate::core::callbacks::InstallCallbacks;
 use crate::core::tool_manager::ToolKind;
 use crate::output::console_output;
-use crate::output::json_output;
-use crate::output::table_output::{
-    InstalledVersionRow, RemoteVersionRow, render_installed_table, render_remote_table,
-};
+use crate::output::dispatcher::{output_json_if, output_list};
+use crate::output::table_output::{RemoteVersionOutput, build_installed_rows};
 use crate::utils::error::ZzmError;
 
 /// ZLS 子命令处理
@@ -42,49 +40,22 @@ pub async fn cmd_zls(
         } => {
             if remote {
                 let versions = manager.list_remote().await?;
-                if json {
-                    json_output::print_json(&versions)?;
-                } else {
-                    let rows: Vec<RemoteVersionRow> = versions
-                        .iter()
-                        .map(|v| RemoteVersionRow {
-                            version: v.version.clone(),
-                            channel: v.channel.to_string(),
-                            date: v.date.clone().unwrap_or_default(),
-                            size: v.asset.as_ref().map(|a| a.size.clone()).unwrap_or_default(),
-                            installed: String::new(),
-                        })
-                        .collect();
-                    render_remote_table(&rows);
-                }
+                let rows: Vec<RemoteVersionOutput> =
+                    versions.iter().map(RemoteVersionOutput::from).collect();
+                output_list(&rows, json, None);
             } else {
                 let versions = manager.list_installed()?;
                 let path_mgr = ctx.path_manager();
                 let index = path_mgr.read_installed_index()?;
+                let active = index.get_active(ToolKind::Zls);
+                let rows = build_installed_rows(&versions, ToolKind::Zls, active);
 
                 if json {
-                    json_output::print_json(&versions)?;
-                } else if versions.is_empty() {
+                    output_json_if(&rows, json)?;
+                } else if rows.is_empty() {
                     console_output::print_info("没有已安装的 ZLS 版本");
                 } else {
-                    let rows: Vec<InstalledVersionRow> = versions
-                        .iter()
-                        .map(|v| {
-                            let is_active =
-                                index.get_active(ToolKind::Zls) == Some(v.version.as_str());
-                            InstalledVersionRow {
-                                version: v.version.clone(),
-                                channel: v.zig_version().unwrap_or_default().to_string(),
-                                path: v.install_path.to_string_lossy().to_string(),
-                                status: if is_active {
-                                    "=> 当前".to_string()
-                                } else {
-                                    String::new()
-                                },
-                            }
-                        })
-                        .collect();
-                    render_installed_table(&rows);
+                    output_list(&rows, false, None);
                 }
             }
         }
