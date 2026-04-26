@@ -74,6 +74,22 @@ pub trait VersionProvider: Send + Sync {
             version: "兼容性查找仅适用于 ZLS".to_string(),
         }))
     }
+
+    /// 安装后钩子（工具特定的后处理逻辑）
+    ///
+    /// Zig: 设置可执行权限（默认实现）
+    /// ZLS: 查找并链接二进制文件（ZlsApiClient 覆盖实现）
+    fn post_install_hook(
+        &self,
+        _version_dir: &std::path::Path,
+        _binary_path: &std::path::Path,
+    ) -> Result<(), ZzmError> {
+        // 默认实现：设置可执行权限
+        if _binary_path.exists() {
+            crate::infra::filesystem::set_executable(_binary_path)?;
+        }
+        Ok(())
+    }
 }
 
 /// 工具版本管理器（泛型抽象）
@@ -146,7 +162,7 @@ impl<T: VersionProvider> ToolManager<T> {
             })?;
 
         // 检查是否已安装
-        let index = self.path_manager.read_installed_index()?;
+        let mut index = self.path_manager.read_installed_index()?;
         let already_installed = self.is_version_installed(&index, &resolved);
 
         if already_installed && !force {
@@ -155,7 +171,8 @@ impl<T: VersionProvider> ToolManager<T> {
 
         if already_installed && force {
             (self.callbacks.on_info)(&format!("强制重装 {tool_name} 版本: {resolved}"));
-            let _ = self.uninstall(&resolved);
+            // 从索引和磁盘移除旧版本
+            self.remove_installed_from_index(&mut index, &resolved)?;
         }
 
         // 下载
@@ -197,7 +214,7 @@ impl<T: VersionProvider> ToolManager<T> {
         // 工具特定的后处理
         self.post_install(&resolved)?;
 
-        // 注册
+        // 注册（复用已有索引，无需重新读取）
         (self.callbacks.on_step)(5, 5, &format!("注册 {tool_name} 版本"));
         let installed = self.create_installed_record(
             &resolved,
@@ -206,7 +223,6 @@ impl<T: VersionProvider> ToolManager<T> {
             zig_version,
         );
 
-        let mut index = self.path_manager.read_installed_index()?;
         self.remove_version_from_index(&mut index, &resolved);
         self.add_version_to_index(&mut index, &installed);
         self.path_manager.write_installed_index(&index)?;
@@ -231,8 +247,7 @@ impl<T: VersionProvider> ToolManager<T> {
 
         // 如果是当前激活版本，移除符号链接
         if self.is_active_version(&index, &resolved) {
-            self.remove_symlinks()?;
-            self.remove_default_symlink()?;
+            self.remove_version_symlinks()?;
             self.set_active_version(&mut index, None);
         }
 
@@ -255,7 +270,8 @@ impl<T: VersionProvider> ToolManager<T> {
         let tool_name = self.tool_name();
         let resolved = resolve_version(version)?;
 
-        let index = self.path_manager.read_installed_index()?;
+        // 单次读取索引，后续复用
+        let mut index = self.path_manager.read_installed_index()?;
         self.find_installed(&index, &resolved)
             .ok_or_else(|| ZzmError::NotInstalled {
                 version: resolved.clone(),
@@ -269,20 +285,10 @@ impl<T: VersionProvider> ToolManager<T> {
             });
         }
 
-        // 更新 bin 目录符号链接
-        self.create_symlink(&resolved)?;
+        // 更新符号链接（bin + default）
+        self.update_version_symlinks(&resolved)?;
 
-        // 更新 default 目录符号链接
-        if let Err(e) = self.create_default_symlink(&resolved) {
-            (self.callbacks.on_warning)(&format!(
-                "创建 {} 目录符号链接失败: {e}，不影响使用，但 {} 模式不可用",
-                self.default_link_name(),
-                self.home_env_name(),
-            ));
-        }
-
-        // 更新索引中的 active 版本
-        let mut index = self.path_manager.read_installed_index()?;
+        // 更新索引中的 active 版本（复用已读取的索引）
         self.set_active_version(&mut index, Some(resolved.clone()));
         self.path_manager.write_installed_index(&index)?;
 
@@ -385,65 +391,12 @@ impl<T: VersionProvider> ToolManager<T> {
         }
     }
 
-    /// 安装后处理（设置可执行权限，ZLS 额外查找二进制）
+    /// 安装后处理（委托给 VersionProvider::post_install_hook）
     fn post_install(&self, version: &str) -> Result<(), ZzmError> {
-        let binary_path = self.binary_path(version);
-        if binary_path.exists() {
-            filesystem::set_executable(&binary_path)?;
-        } else if self.kind == ToolKind::Zls {
-            // ZLS 的二进制文件可能没有版本后缀，需要查找
-            self.find_and_link_zls_binary(version)?;
-        }
-        Ok(())
-    }
-
-    /// ZLS 专用：查找并链接二进制文件
-    fn find_and_link_zls_binary(&self, version: &str) -> Result<(), ZzmError> {
         let version_dir = self.version_dir(version);
-
-        // 在版本目录中搜索 zls 或 zls.exe
-        if let Ok(entries) = std::fs::read_dir(&version_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() {
-                    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    if name == "zls" || name == "zls.exe" {
-                        let dest = self.binary_path(version);
-                        if path != dest {
-                            std::fs::copy(&path, &dest).map_err(ZzmError::Io)?;
-                        }
-                        return Ok(());
-                    }
-                }
-            }
-        }
-
-        // 在子目录中搜索
-        if let Ok(entries) = std::fs::read_dir(&version_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir()
-                    && let Ok(sub_entries) = std::fs::read_dir(&path)
-                {
-                    for sub_entry in sub_entries.flatten() {
-                        let sub_path = sub_entry.path();
-                        if sub_path.is_file() {
-                            let name = sub_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                            if name == "zls" || name == "zls.exe" {
-                                let dest = self.binary_path(version);
-                                std::fs::copy(&sub_path, &dest).map_err(ZzmError::Io)?;
-                                return Ok(());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Err(ZzmError::ExtractionFailed {
-            path: version_dir.to_string_lossy().to_string(),
-            reason: "未找到 ZLS 二进制文件".to_string(),
-        })
+        let binary_path = self.binary_path(version);
+        self.api_client
+            .post_install_hook(&version_dir, &binary_path)
     }
 
     /// 创建已安装记录
@@ -471,6 +424,27 @@ impl<T: VersionProvider> ToolManager<T> {
     }
 
     // ========== 索引操作辅助 ==========
+
+    /// 从索引中移除已安装版本（包括磁盘清理和符号链接更新）
+    fn remove_installed_from_index(
+        &self,
+        index: &mut InstalledIndex,
+        version: &str,
+    ) -> Result<(), ZzmError> {
+        if let Some(pos) = self.find_installed_position(index, version) {
+            if self.is_active_version(index, version) {
+                self.remove_version_symlinks()?;
+                self.set_active_version(index, None);
+            }
+            let version_dir = self.version_dir(version);
+            if version_dir.exists() {
+                filesystem::remove_dir_all(&version_dir)?;
+            }
+            self.remove_version_at(index, pos);
+            self.path_manager.write_installed_index(index)?;
+        }
+        Ok(())
+    }
 
     fn is_version_installed(&self, index: &InstalledIndex, version: &str) -> bool {
         index
@@ -538,32 +512,43 @@ impl<T: VersionProvider> ToolManager<T> {
 
     // ========== 符号链接操作 ==========
 
-    fn create_symlink(&self, version: &str) -> Result<(), ZzmError> {
+    /// 更新版本符号链接（bin + default）
+    fn update_version_symlinks(&self, version: &str) -> Result<(), ZzmError> {
+        // 更新 bin 目录符号链接
         match self.kind {
-            ToolKind::Zig => self.path_manager.create_zig_symlink(version),
-            ToolKind::Zls => self.path_manager.create_zls_symlink(version),
+            ToolKind::Zig => self.path_manager.create_zig_symlink(version)?,
+            ToolKind::Zls => self.path_manager.create_zls_symlink(version)?,
         }
-    }
 
-    fn remove_symlinks(&self) -> Result<(), ZzmError> {
-        match self.kind {
-            ToolKind::Zig => self.path_manager.remove_zig_symlink(),
-            ToolKind::Zls => self.path_manager.remove_zls_symlink(),
-        }
-    }
-
-    fn create_default_symlink(&self, version: &str) -> Result<(), ZzmError> {
-        match self.kind {
+        // 更新 default 目录符号链接（非致命错误）
+        let default_result = match self.kind {
             ToolKind::Zig => self.path_manager.create_default_zig_symlink(version),
             ToolKind::Zls => self.path_manager.create_default_zls_symlink(version),
+        };
+        if let Err(e) = default_result {
+            (self.callbacks.on_warning)(&format!(
+                "创建 {} 目录符号链接失败: {e}，不影响使用，但 {} 模式不可用",
+                self.default_link_name(),
+                self.home_env_name(),
+            ));
         }
+
+        Ok(())
     }
 
-    fn remove_default_symlink(&self) -> Result<(), ZzmError> {
+    /// 移除版本符号链接（bin + default）
+    fn remove_version_symlinks(&self) -> Result<(), ZzmError> {
         match self.kind {
-            ToolKind::Zig => self.path_manager.remove_default_symlink(),
-            ToolKind::Zls => self.path_manager.remove_default_zls_symlink(),
+            ToolKind::Zig => {
+                self.path_manager.remove_zig_symlink()?;
+                self.path_manager.remove_default_symlink()?;
+            }
+            ToolKind::Zls => {
+                self.path_manager.remove_zls_symlink()?;
+                self.path_manager.remove_default_zls_symlink()?;
+            }
         }
+        Ok(())
     }
 }
 
