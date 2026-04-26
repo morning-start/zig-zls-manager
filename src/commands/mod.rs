@@ -6,6 +6,7 @@ pub mod info;
 pub mod install;
 pub mod list;
 pub mod pair;
+pub mod prune;
 pub mod restore;
 pub mod setup;
 pub mod version_use;
