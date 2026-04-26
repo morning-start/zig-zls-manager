@@ -6,9 +6,7 @@ use crate::core::channel::Channel;
 use crate::infra::checksum;
 use crate::infra::downloader::Downloader;
 use crate::infra::filesystem;
-use crate::infra::path_manager::{
-    InstalledIndex, InstalledZigVersion, InstalledZlsVersion, PathManager,
-};
+use crate::infra::path_manager::{InstalledIndex, PathManager, ToolExtraData, ToolIndexEntry};
 use crate::platform::PlatformTrait;
 use crate::utils::error::ZzmError;
 use crate::utils::version::resolve_version;
@@ -16,7 +14,8 @@ use crate::utils::version::resolve_version;
 /// 工具类型标识
 ///
 /// 用于区分 Zig 和 ZLS 的路径计算、索引操作等差异
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// 实现 Serialize/Deserialize 以支持 HashMap<ToolKind, _> 的 JSON 序列化
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ToolKind {
     Zig,
     Zls,
@@ -125,7 +124,7 @@ impl<T: VersionProvider> ToolManager<T> {
         version: &str,
         force: bool,
         zig_version: Option<&str>,
-    ) -> Result<InstalledVersion, ZzmError> {
+    ) -> Result<ToolIndexEntry, ZzmError> {
         self.initialize()?;
 
         let tool_name = self.tool_name();
@@ -299,7 +298,7 @@ impl<T: VersionProvider> ToolManager<T> {
     }
 
     /// 获取当前激活的版本
-    pub fn current(&self) -> Result<Option<InstalledVersion>, ZzmError> {
+    pub fn current(&self) -> Result<Option<ToolIndexEntry>, ZzmError> {
         let index = self.path_manager.read_installed_index()?;
 
         let active = self.get_active_version(&index);
@@ -313,7 +312,7 @@ impl<T: VersionProvider> ToolManager<T> {
     }
 
     /// 列出已安装的版本
-    pub fn list_installed(&self) -> Result<Vec<InstalledVersion>, ZzmError> {
+    pub fn list_installed(&self) -> Result<Vec<ToolIndexEntry>, ZzmError> {
         let index = self.path_manager.read_installed_index()?;
         Ok(self.get_all_installed(&index))
     }
@@ -454,137 +453,87 @@ impl<T: VersionProvider> ToolManager<T> {
         version_dir: std::path::PathBuf,
         channel: &Channel,
         zig_version: Option<&str>,
-    ) -> InstalledVersion {
-        match self.kind {
-            ToolKind::Zig => InstalledVersion::Zig(InstalledZigVersion {
-                version: version.to_string(),
-                install_path: version_dir,
-                installed_at: Utc::now().to_rfc3339(),
+    ) -> ToolIndexEntry {
+        let extra = match self.kind {
+            ToolKind::Zig => ToolExtraData::Zig {
                 channel: channel.clone(),
-            }),
-            ToolKind::Zls => InstalledVersion::Zls(InstalledZlsVersion {
-                version: version.to_string(),
-                install_path: version_dir,
-                installed_at: Utc::now().to_rfc3339(),
+            },
+            ToolKind::Zls => ToolExtraData::Zls {
                 zig_version: zig_version.map(|s| s.to_string()),
-            }),
+            },
+        };
+        ToolIndexEntry {
+            version: version.to_string(),
+            install_path: version_dir,
+            installed_at: Utc::now().to_rfc3339(),
+            extra,
         }
     }
 
     // ========== 索引操作辅助 ==========
 
     fn is_version_installed(&self, index: &InstalledIndex, version: &str) -> bool {
-        match self.kind {
-            ToolKind::Zig => index.zig_versions.iter().any(|v| v.version == version),
-            ToolKind::Zls => index.zls_versions.iter().any(|v| v.version == version),
-        }
+        index
+            .get_versions(self.kind)
+            .iter()
+            .any(|v| v.version == version)
     }
 
     fn is_active_version(&self, index: &InstalledIndex, version: &str) -> bool {
-        match self.kind {
-            ToolKind::Zig => index.active_zig.as_ref() == Some(&version.to_string()),
-            ToolKind::Zls => index.active_zls.as_ref() == Some(&version.to_string()),
-        }
+        index.get_active(self.kind) == Some(version)
     }
 
     fn set_active_version(&self, index: &mut InstalledIndex, version: Option<String>) {
-        match self.kind {
-            ToolKind::Zig => index.active_zig = version,
-            ToolKind::Zls => index.active_zls = version,
-        }
+        index.set_active(self.kind, version);
     }
 
     fn get_active_version(&self, index: &InstalledIndex) -> Option<String> {
-        match self.kind {
-            ToolKind::Zig => index.active_zig.clone(),
-            ToolKind::Zls => index.active_zls.clone(),
-        }
+        index.get_active(self.kind).map(|s| s.to_string())
     }
 
     fn find_installed_position(&self, index: &InstalledIndex, version: &str) -> Option<usize> {
-        match self.kind {
-            ToolKind::Zig => index.zig_versions.iter().position(|v| v.version == version),
-            ToolKind::Zls => index.zls_versions.iter().position(|v| v.version == version),
-        }
+        index
+            .get_versions(self.kind)
+            .iter()
+            .position(|v| v.version == version)
     }
 
     fn remove_version_from_index(&self, index: &mut InstalledIndex, version: &str) {
-        match self.kind {
-            ToolKind::Zig => index.zig_versions.retain(|v| v.version != version),
-            ToolKind::Zls => index.zls_versions.retain(|v| v.version != version),
-        }
+        index
+            .get_versions_mut(self.kind)
+            .retain(|v| v.version != version);
     }
 
     fn remove_version_at(&self, index: &mut InstalledIndex, pos: usize) {
-        match self.kind {
-            ToolKind::Zig => {
-                index.zig_versions.remove(pos);
-            }
-            ToolKind::Zls => {
-                index.zls_versions.remove(pos);
-            }
-        }
+        index.get_versions_mut(self.kind).remove(pos);
     }
 
-    fn add_version_to_index(&self, index: &mut InstalledIndex, installed: &InstalledVersion) {
-        match (self.kind, installed) {
-            (ToolKind::Zig, InstalledVersion::Zig(v)) => index.zig_versions.push(v.clone()),
-            (ToolKind::Zls, InstalledVersion::Zls(v)) => index.zls_versions.push(v.clone()),
-            _ => {}
-        }
+    fn add_version_to_index(&self, index: &mut InstalledIndex, entry: &ToolIndexEntry) {
+        index.get_versions_mut(self.kind).push(entry.clone());
     }
 
     fn find_installed(&self, index: &InstalledIndex, version: &str) -> Option<()> {
-        match self.kind {
-            ToolKind::Zig => index
-                .zig_versions
-                .iter()
-                .find(|v| v.version == version)
-                .map(|_| ()),
-            ToolKind::Zls => index
-                .zls_versions
-                .iter()
-                .find(|v| v.version == version)
-                .map(|_| ()),
-        }
+        index
+            .get_versions(self.kind)
+            .iter()
+            .find(|v| v.version == version)
+            .map(|_| ())
     }
 
     fn find_installed_by_version(
         &self,
         index: &InstalledIndex,
         version: &str,
-    ) -> Option<InstalledVersion> {
-        match self.kind {
-            ToolKind::Zig => index
-                .zig_versions
-                .iter()
-                .find(|v| v.version == version)
-                .cloned()
-                .map(InstalledVersion::Zig),
-            ToolKind::Zls => index
-                .zls_versions
-                .iter()
-                .find(|v| v.version == version)
-                .cloned()
-                .map(InstalledVersion::Zls),
-        }
+    ) -> Option<ToolIndexEntry> {
+        index
+            .get_versions(self.kind)
+            .iter()
+            .find(|v| v.version == version)
+            .cloned()
     }
 
-    fn get_all_installed(&self, index: &InstalledIndex) -> Vec<InstalledVersion> {
-        match self.kind {
-            ToolKind::Zig => index
-                .zig_versions
-                .iter()
-                .cloned()
-                .map(InstalledVersion::Zig)
-                .collect(),
-            ToolKind::Zls => index
-                .zls_versions
-                .iter()
-                .cloned()
-                .map(InstalledVersion::Zls)
-                .collect(),
-        }
+    fn get_all_installed(&self, index: &InstalledIndex) -> Vec<ToolIndexEntry> {
+        index.get_versions(self.kind).to_vec()
     }
 
     // ========== 符号链接操作 ==========
@@ -618,56 +567,13 @@ impl<T: VersionProvider> ToolManager<T> {
     }
 }
 
-/// 已安装版本的统一枚举
-///
-/// 封装 Zig 和 ZLS 不同的已安装版本结构
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum InstalledVersion {
-    Zig(InstalledZigVersion),
-    Zls(InstalledZlsVersion),
-}
-
-impl InstalledVersion {
-    /// 获取版本号
-    pub fn version(&self) -> &str {
-        match self {
-            InstalledVersion::Zig(v) => &v.version,
-            InstalledVersion::Zls(v) => &v.version,
-        }
-    }
-
-    /// 获取安装路径
-    pub fn install_path(&self) -> &std::path::Path {
-        match self {
-            InstalledVersion::Zig(v) => &v.install_path,
-            InstalledVersion::Zls(v) => &v.install_path,
-        }
-    }
-
-    /// 获取通道信息（Zig 有独立 channel 字段）
-    pub fn channel(&self) -> Option<&Channel> {
-        match self {
-            InstalledVersion::Zig(v) => Some(&v.channel),
-            InstalledVersion::Zls(_) => None,
-        }
-    }
-
-    /// 获取关联的 Zig 版本（仅 ZLS）
-    pub fn zig_version(&self) -> Option<&str> {
-        match self {
-            InstalledVersion::Zls(v) => v.zig_version.as_deref(),
-            InstalledVersion::Zig(_) => None,
-        }
-    }
-}
-
 // ========== 单元测试 ==========
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::core::channel::Channel;
-    use crate::infra::path_manager::{InstalledZigVersion, InstalledZlsVersion};
+    use crate::infra::path_manager::{ToolExtraData, ToolIndexEntry};
 
     // ---- ToolKind 测试 ----
 
@@ -778,103 +684,116 @@ mod tests {
         assert!(deserialized.asset.is_some());
     }
 
-    // ---- InstalledVersion 测试 ----
+    // ---- ToolIndexEntry 测试 ----
 
-    fn make_zig_version(version: &str, channel: Channel) -> InstalledVersion {
-        InstalledVersion::Zig(InstalledZigVersion {
+    fn make_zig_entry(version: &str, channel: Channel) -> ToolIndexEntry {
+        ToolIndexEntry {
             version: version.to_string(),
             install_path: std::path::PathBuf::from(format!("/home/.zzm/versions/zig/{version}")),
             installed_at: "2026-04-25T00:00:00+00:00".to_string(),
-            channel,
-        })
+            extra: ToolExtraData::Zig { channel },
+        }
     }
 
-    fn make_zls_version(version: &str, zig_version: Option<&str>) -> InstalledVersion {
-        InstalledVersion::Zls(InstalledZlsVersion {
+    fn make_zls_entry(version: &str, zig_version: Option<&str>) -> ToolIndexEntry {
+        ToolIndexEntry {
             version: version.to_string(),
             install_path: std::path::PathBuf::from(format!("/home/.zzm/versions/zls/{version}")),
             installed_at: "2026-04-25T00:00:00+00:00".to_string(),
-            zig_version: zig_version.map(|s| s.to_string()),
-        })
+            extra: ToolExtraData::Zls {
+                zig_version: zig_version.map(|s| s.to_string()),
+            },
+        }
     }
 
     #[test]
-    fn test_installed_version_zig_accessors() {
-        let v = make_zig_version("0.13.0", Channel::Stable);
-        assert_eq!(v.version(), "0.13.0");
-        assert!(v.install_path().to_string_lossy().contains("0.13.0"));
+    fn test_tool_index_entry_zig_accessors() {
+        let v = make_zig_entry("0.13.0", Channel::Stable);
+        assert_eq!(v.version, "0.13.0");
+        assert!(v.install_path.to_string_lossy().contains("0.13.0"));
         assert_eq!(v.channel(), Some(&Channel::Stable));
         assert_eq!(v.zig_version(), None);
     }
 
     #[test]
-    fn test_installed_version_zls_accessors() {
-        let v = make_zls_version("0.13.0", Some("0.13.0"));
-        assert_eq!(v.version(), "0.13.0");
-        assert!(v.install_path().to_string_lossy().contains("0.13.0"));
+    fn test_tool_index_entry_zls_accessors() {
+        let v = make_zls_entry("0.13.0", Some("0.13.0"));
+        assert_eq!(v.version, "0.13.0");
+        assert!(v.install_path.to_string_lossy().contains("0.13.0"));
         assert_eq!(v.channel(), None);
         assert_eq!(v.zig_version(), Some("0.13.0"));
     }
 
     #[test]
-    fn test_installed_version_zls_no_zig_version() {
-        let v = make_zls_version("0.14.0-dev", None);
+    fn test_tool_index_entry_zls_no_zig_version() {
+        let v = make_zls_entry("0.14.0-dev", None);
         assert_eq!(v.zig_version(), None);
     }
 
     #[test]
-    fn test_installed_version_zig_nightly() {
-        let v = make_zig_version("0.14.0-dev", Channel::Nightly);
+    fn test_tool_index_entry_zig_nightly() {
+        let v = make_zig_entry("0.14.0-dev", Channel::Nightly);
         assert_eq!(v.channel(), Some(&Channel::Nightly));
     }
 
     #[test]
-    fn test_installed_version_zig_prerelease() {
-        let v = make_zig_version("0.14.0-rc1", Channel::Prerelease);
+    fn test_tool_index_entry_zig_prerelease() {
+        let v = make_zig_entry("0.14.0-rc1", Channel::Prerelease);
         assert_eq!(v.channel(), Some(&Channel::Prerelease));
     }
 
     #[test]
-    fn test_installed_version_serde_roundtrip() {
-        let zig = make_zig_version("0.13.0", Channel::Stable);
+    fn test_tool_index_entry_serde_roundtrip() {
+        let zig = make_zig_entry("0.13.0", Channel::Stable);
         let json = serde_json::to_string(&zig).unwrap();
-        let deserialized: InstalledVersion = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.version(), "0.13.0");
+        let deserialized: ToolIndexEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.version, "0.13.0");
 
-        let zls = make_zls_version("0.13.0", Some("0.13.0"));
+        let zls = make_zls_entry("0.13.0", Some("0.13.0"));
         let json = serde_json::to_string(&zls).unwrap();
-        let deserialized: InstalledVersion = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.version(), "0.13.0");
+        let deserialized: ToolIndexEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.version, "0.13.0");
         assert_eq!(deserialized.zig_version(), Some("0.13.0"));
     }
 
     #[test]
-    fn test_installed_version_clone() {
-        let v = make_zig_version("0.13.0", Channel::Stable);
+    fn test_tool_index_entry_clone() {
+        let v = make_zig_entry("0.13.0", Channel::Stable);
         let cloned = v.clone();
-        assert_eq!(cloned.version(), "0.13.0");
+        assert_eq!(cloned.version, "0.13.0");
         assert_eq!(cloned.channel(), Some(&Channel::Stable));
     }
 
     // ---- 索引操作辅助方法测试 ----
 
     fn make_index() -> InstalledIndex {
-        InstalledIndex {
-            zig_versions: vec![InstalledZigVersion {
+        let mut tools = std::collections::HashMap::new();
+        tools.insert(
+            ToolKind::Zig,
+            vec![ToolIndexEntry {
                 version: "0.13.0".to_string(),
                 install_path: std::path::PathBuf::from("/home/.zzm/versions/zig/0.13.0"),
                 installed_at: "2026-04-25T00:00:00+00:00".to_string(),
-                channel: Channel::Stable,
+                extra: ToolExtraData::Zig {
+                    channel: Channel::Stable,
+                },
             }],
-            zls_versions: vec![InstalledZlsVersion {
+        );
+        tools.insert(
+            ToolKind::Zls,
+            vec![ToolIndexEntry {
                 version: "0.13.0".to_string(),
                 install_path: std::path::PathBuf::from("/home/.zzm/versions/zls/0.13.0"),
                 installed_at: "2026-04-25T00:00:00+00:00".to_string(),
-                zig_version: Some("0.13.0".to_string()),
+                extra: ToolExtraData::Zls {
+                    zig_version: Some("0.13.0".to_string()),
+                },
             }],
-            active_zig: Some("0.13.0".to_string()),
-            active_zls: Some("0.13.0".to_string()),
-        }
+        );
+        let mut active = std::collections::HashMap::new();
+        active.insert(ToolKind::Zig, "0.13.0".to_string());
+        active.insert(ToolKind::Zls, "0.13.0".to_string());
+        InstalledIndex { tools, active }
     }
 
     /// 模拟 VersionProvider（测试用，不依赖文件系统）
@@ -896,10 +815,8 @@ mod tests {
     #[test]
     fn test_installed_index_default() {
         let index = InstalledIndex::default();
-        assert!(index.zig_versions.is_empty());
-        assert!(index.zls_versions.is_empty());
-        assert!(index.active_zig.is_none());
-        assert!(index.active_zls.is_none());
+        assert!(index.tools.is_empty());
+        assert!(index.active.is_empty());
     }
 
     #[test]
@@ -907,59 +824,77 @@ mod tests {
         let index = make_index();
         let json = serde_json::to_string(&index).unwrap();
         let deserialized: InstalledIndex = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.zig_versions.len(), 1);
-        assert_eq!(deserialized.zls_versions.len(), 1);
-        assert_eq!(deserialized.active_zig, Some("0.13.0".to_string()));
-        assert_eq!(deserialized.active_zls, Some("0.13.0".to_string()));
+        assert_eq!(deserialized.get_versions(ToolKind::Zig).len(), 1);
+        assert_eq!(deserialized.get_versions(ToolKind::Zls).len(), 1);
+        assert_eq!(deserialized.get_active(ToolKind::Zig), Some("0.13.0"));
+        assert_eq!(deserialized.get_active(ToolKind::Zls), Some("0.13.0"));
     }
 
     #[test]
     fn test_installed_index_empty_deserialization() {
         let json = r#"{}"#;
         let index: InstalledIndex = serde_json::from_str(json).unwrap();
-        assert!(index.zig_versions.is_empty());
-        assert!(index.zls_versions.is_empty());
-        assert!(index.active_zig.is_none());
-        assert!(index.active_zls.is_none());
+        assert!(index.tools.is_empty());
+        assert!(index.active.is_empty());
     }
 
     #[test]
-    fn test_installed_zig_version_channel_serde() {
-        let v = InstalledZigVersion {
+    fn test_installed_index_legacy_migration() {
+        // 旧格式 JSON
+        let legacy_json = r#"{
+            "zig_versions": [{"version":"0.13.0","install_path":"/home/.zzm/versions/zig/0.13.0","installed_at":"2026-04-25T00:00:00+00:00","channel":"stable"}],
+            "zls_versions": [{"version":"0.13.0","install_path":"/home/.zzm/versions/zls/0.13.0","installed_at":"2026-04-25T00:00:00+00:00","zig_version":"0.13.0"}],
+            "active_zig": "0.13.0",
+            "active_zls": "0.13.0"
+        }"#;
+        let index = InstalledIndex::from_json_str(legacy_json).unwrap();
+        assert_eq!(index.get_versions(ToolKind::Zig).len(), 1);
+        assert_eq!(index.get_versions(ToolKind::Zls).len(), 1);
+        assert_eq!(index.get_active(ToolKind::Zig), Some("0.13.0"));
+        assert_eq!(index.get_active(ToolKind::Zls), Some("0.13.0"));
+    }
+
+    #[test]
+    fn test_tool_index_entry_zig_channel_serde() {
+        let v = ToolIndexEntry {
             version: "0.14.0-dev".to_string(),
             install_path: std::path::PathBuf::from("/home/.zzm/versions/zig/0.14.0-dev"),
             installed_at: "2026-04-25T00:00:00+00:00".to_string(),
-            channel: Channel::Nightly,
+            extra: ToolExtraData::Zig {
+                channel: Channel::Nightly,
+            },
         };
         let json = serde_json::to_string(&v).unwrap();
-        let deserialized: InstalledZigVersion = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.channel, Channel::Nightly);
+        let deserialized: ToolIndexEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.channel(), Some(&Channel::Nightly));
     }
 
     #[test]
-    fn test_installed_zls_version_with_zig_version() {
-        let v = InstalledZlsVersion {
+    fn test_tool_index_entry_zls_with_zig_version() {
+        let v = ToolIndexEntry {
             version: "0.13.0".to_string(),
             install_path: std::path::PathBuf::from("/home/.zzm/versions/zls/0.13.0"),
             installed_at: "2026-04-25T00:00:00+00:00".to_string(),
-            zig_version: Some("0.13.0".to_string()),
+            extra: ToolExtraData::Zls {
+                zig_version: Some("0.13.0".to_string()),
+            },
         };
         let json = serde_json::to_string(&v).unwrap();
-        let deserialized: InstalledZlsVersion = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.zig_version, Some("0.13.0".to_string()));
+        let deserialized: ToolIndexEntry = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.zig_version(), Some("0.13.0"));
     }
 
     #[test]
-    fn test_installed_zls_version_without_zig_version() {
-        let v = InstalledZlsVersion {
+    fn test_tool_index_entry_zls_without_zig_version() {
+        let v = ToolIndexEntry {
             version: "0.14.0-dev".to_string(),
             install_path: std::path::PathBuf::from("/home/.zzm/versions/zls/0.14.0-dev"),
             installed_at: "2026-04-25T00:00:00+00:00".to_string(),
-            zig_version: None,
+            extra: ToolExtraData::Zls { zig_version: None },
         };
         let json = serde_json::to_string(&v).unwrap();
-        let deserialized: InstalledZlsVersion = serde_json::from_str(&json).unwrap();
-        assert!(deserialized.zig_version.is_none());
+        let deserialized: ToolIndexEntry = serde_json::from_str(&json).unwrap();
+        assert!(deserialized.zig_version().is_none());
     }
 
     // ---- 流式校验测试 ----

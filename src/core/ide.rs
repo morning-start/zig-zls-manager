@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use crate::core::config::ConfigManager;
+use crate::core::tool_manager::ToolKind;
 use crate::infra::path_manager::PathManager;
 use crate::output::console_output;
 use crate::platform::PlatformTrait;
@@ -45,12 +46,15 @@ impl IdeManager {
     /// 获取当前 Zig 可执行文件路径
     pub fn zig_binary_path(&self) -> Result<PathBuf, ZzmError> {
         let index = self.path_manager.read_installed_index()?;
-        let active = index.active_zig.ok_or_else(|| ZzmError::NotInstalled {
-            version: "zig (no active version)".to_string(),
-        })?;
+        let active = index
+            .get_active(ToolKind::Zig)
+            .ok_or_else(|| ZzmError::NotInstalled {
+                version: "zig (no active version)".to_string(),
+            })?
+            .to_string();
 
         let version = index
-            .zig_versions
+            .get_versions(ToolKind::Zig)
             .iter()
             .find(|v| v.version == active)
             .ok_or_else(|| ZzmError::NotInstalled {
@@ -72,12 +76,15 @@ impl IdeManager {
     /// 获取当前 ZLS 可执行文件路径
     pub fn zls_binary_path(&self) -> Result<PathBuf, ZzmError> {
         let index = self.path_manager.read_installed_index()?;
-        let active = index.active_zls.ok_or_else(|| ZzmError::NotInstalled {
-            version: "zls (no active version)".to_string(),
-        })?;
+        let active = index
+            .get_active(ToolKind::Zls)
+            .ok_or_else(|| ZzmError::NotInstalled {
+                version: "zls (no active version)".to_string(),
+            })?
+            .to_string();
 
         let version = index
-            .zls_versions
+            .get_versions(ToolKind::Zls)
             .iter()
             .find(|v| v.version == active)
             .ok_or_else(|| ZzmError::NotInstalled {

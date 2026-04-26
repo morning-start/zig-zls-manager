@@ -4,7 +4,11 @@ use serde::{Deserialize, Serialize};
 ///
 /// 统一 Zig 和 ZLS 的通道概念，替代之前分散的
 /// `infra::zig_api::ZigChannel` 和 `infra::zls_api::ZlsChannel`。
+///
+/// 序列化使用 lowercase（"stable"/"nightly"/"prerelease"），
+/// 兼容旧格式 installed.json 和 API 响应
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Channel {
     /// 稳定发布版
     Stable,
@@ -63,14 +67,22 @@ mod tests {
     fn test_channel_serde() {
         let stable = Channel::Stable;
         let json = serde_json::to_string(&stable).unwrap();
-        assert!(json.contains("Stable"));
+        assert!(json.contains("stable"));
 
         let nightly = Channel::Nightly;
         let json = serde_json::to_string(&nightly).unwrap();
-        assert!(json.contains("Nightly"));
+        assert!(json.contains("nightly"));
 
         let prerelease = Channel::Prerelease;
         let json = serde_json::to_string(&prerelease).unwrap();
-        assert!(json.contains("Prerelease"));
+        assert!(json.contains("prerelease"));
+
+        // lowercase 反序列化
+        let ch: Channel = serde_json::from_str("\"stable\"").unwrap();
+        assert_eq!(ch, Channel::Stable);
+        let ch: Channel = serde_json::from_str("\"nightly\"").unwrap();
+        assert_eq!(ch, Channel::Nightly);
+        let ch: Channel = serde_json::from_str("\"prerelease\"").unwrap();
+        assert_eq!(ch, Channel::Prerelease);
     }
 }
