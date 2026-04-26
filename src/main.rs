@@ -109,6 +109,10 @@ async fn run(cli: Cli) -> Result<(), utils::error::ZzmError> {
         cli::Commands::Info { verbose } => commands::info::cmd_info(&ctx, verbose).await,
         cli::Commands::Config { command } => commands::config::cmd_config(&ctx, command).await,
         cli::Commands::Ide { command } => commands::ide::cmd_ide(&ctx, command).await,
+        cli::Commands::Prune {
+            dry_run,
+            confirm: _,
+        } => commands::prune::cmd_prune(&ctx, dry_run, cli.json).await,
         cli::Commands::Clean { all, dry_run } => {
             commands::clean::cmd_clean(&ctx, all, dry_run).await
         }

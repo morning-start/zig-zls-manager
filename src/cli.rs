@@ -183,6 +183,17 @@ pub enum Commands {
         command: IdeCommands,
     },
 
+    /// 移除未使用的旧版本
+    Prune {
+        /// 仅预览将要清理的版本（不实际执行）
+        #[arg(long)]
+        dry_run: bool,
+
+        /// 跳过确认提示，直接执行
+        #[arg(short, long)]
+        confirm: bool,
+    },
+
     /// 清理缓存和旧版本
     Clean {
         /// 清理所有缓存（包括下载缓存）
