@@ -219,7 +219,11 @@ async fn execute_install_plan(
         // 串行解压注册（先 Zig 后 ZLS）
         let installed = zig_manager.install_from_cache(&zig_downloaded, false, None)?;
         zig_manager.use_version(&installed.version).await?;
-        zls_manager.install_from_cache(&zls_downloaded, false, Some(&installed.version))?;
+        if let Err(e) = zls_manager.install_from_cache(&zls_downloaded, false, Some(&installed.version)) {
+            // ZLS 安装失败，回滚 Zig 安装和激活以保持一致性
+            let _ = zig_manager.uninstall(&installed.version);
+            return Err(e);
+        }
     } else {
         // 仅安装 Zig
         let installed = zig_manager.install(zig_version, false, None).await?;

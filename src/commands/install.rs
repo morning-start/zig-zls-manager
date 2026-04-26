@@ -57,11 +57,15 @@ pub async fn cmd_install(
 
     // 第三步：串行解压注册（先 Zig 后 ZLS）
     let zig_installed = zig_manager.install_from_cache(&zig_downloaded, force, None)?;
-    zls_manager.install_from_cache(
+    if let Err(e) = zls_manager.install_from_cache(
         &zls_downloaded,
         force,
         Some(&zig_installed.version),
-    )?;
+    ) {
+        // ZLS 安装失败，回滚 Zig 安装以保持一致性
+        let _ = zig_manager.uninstall(&zig_installed.version);
+        return Err(e);
+    }
 
     Ok(())
 }

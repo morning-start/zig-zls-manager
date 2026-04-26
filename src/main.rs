@@ -1,17 +1,9 @@
 use clap::Parser;
 use tracing_subscriber::{EnvFilter, fmt};
 
-mod cli;
-mod commands;
-mod core;
-mod infra;
-mod output;
-mod platform;
-mod utils;
-
-use crate::cli::Cli;
-use crate::commands::AppContext;
-use crate::platform::detect_platform;
+use zzm::cli::Cli;
+use zzm::commands::AppContext;
+use zzm::platform::detect_platform;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -21,11 +13,11 @@ async fn main() -> anyhow::Result<()> {
     init_logging(cli.verbose);
 
     // 设置输出模式
-    output::console_output::set_no_color(cli.no_color);
+    zzm::output::console_output::set_no_color(cli.no_color);
 
     // 运行命令
     if let Err(e) = run(cli).await {
-        output::console_output::print_error(&e.to_string());
+        zzm::output::console_output::print_error(&e.to_string());
         std::process::exit(1);
     }
 
@@ -47,55 +39,55 @@ fn init_logging(verbose: bool) {
         .init();
 }
 
-async fn run(cli: Cli) -> Result<(), utils::error::ZzmError> {
+async fn run(cli: Cli) -> Result<(), zzm::utils::error::ZzmError> {
     tracing::debug!("zzm v{} 启动", env!("CARGO_PKG_VERSION"));
 
     let ctx = AppContext::new(detect_platform());
 
     match cli.command {
-        cli::Commands::Install {
+        zzm::cli::Commands::Install {
             version,
             with_zls,
             from_source: _,
             yes: _,
             force,
-        } => commands::install::cmd_install(&ctx, &version, with_zls, force, cli.json).await,
-        cli::Commands::Uninstall { version, purge: _ } => {
-            commands::install::cmd_uninstall(&ctx, &version, cli.json).await
+        } => zzm::commands::install::cmd_install(&ctx, &version, with_zls, force, cli.json).await,
+        zzm::cli::Commands::Uninstall { version, purge: _ } => {
+            zzm::commands::install::cmd_uninstall(&ctx, &version, cli.json).await
         }
-        cli::Commands::List {
+        zzm::cli::Commands::List {
             installed,
             remote,
             json,
-        } => commands::list::cmd_list(&ctx, installed, remote, json || cli.json).await,
-        cli::Commands::Use {
+        } => zzm::commands::list::cmd_list(&ctx, installed, remote, json || cli.json).await,
+        zzm::cli::Commands::Use {
             version,
             global: _,
             project: _,
             default: _,
             zls,
-        } => commands::version_use::cmd_use(&ctx, &version, zls, cli.json).await,
-        cli::Commands::Current { json } => {
-            commands::list::cmd_current(&ctx, json || cli.json).await
+        } => zzm::commands::version_use::cmd_use(&ctx, &version, zls, cli.json).await,
+        zzm::cli::Commands::Current { json } => {
+            zzm::commands::list::cmd_current(&ctx, json || cli.json).await
         }
-        cli::Commands::Zls { command } => commands::zls::cmd_zls(&ctx, command, cli.json).await,
-        cli::Commands::Setup {
+        zzm::cli::Commands::Zls { command } => zzm::commands::zls::cmd_zls(&ctx, command, cli.json).await,
+        zzm::cli::Commands::Setup {
             version,
             with_zls,
             ide: _,
             wizard,
-        } => commands::setup::cmd_setup(&ctx, version, with_zls, wizard, cli.json).await,
-        cli::Commands::Sync { dry_run } => commands::setup::cmd_sync(&ctx, dry_run, cli.json).await,
-        cli::Commands::Pair {
+        } => zzm::commands::setup::cmd_setup(&ctx, version, with_zls, wizard, cli.json).await,
+        zzm::cli::Commands::Sync { dry_run } => zzm::commands::setup::cmd_sync(&ctx, dry_run, cli.json).await,
+        zzm::cli::Commands::Pair {
             zig_version,
             zls,
             compatibility,
             show,
         } => {
             if show {
-                commands::pair::cmd_pair_show(&ctx, cli.json).await
+                zzm::commands::pair::cmd_pair_show(&ctx, cli.json).await
             } else {
-                commands::pair::cmd_pair(
+                zzm::commands::pair::cmd_pair(
                     &ctx,
                     &zig_version,
                     zls.as_deref(),
@@ -105,18 +97,18 @@ async fn run(cli: Cli) -> Result<(), utils::error::ZzmError> {
                 .await
             }
         }
-        cli::Commands::Restore { dir } => commands::restore::cmd_restore(&ctx, dir, cli.json).await,
-        cli::Commands::Info { verbose } => commands::info::cmd_info(&ctx, verbose).await,
-        cli::Commands::Config { command } => commands::config::cmd_config(&ctx, command).await,
-        cli::Commands::Ide { command } => commands::ide::cmd_ide(&ctx, command).await,
-        cli::Commands::Prune {
+        zzm::cli::Commands::Restore { dir } => zzm::commands::restore::cmd_restore(&ctx, dir, cli.json).await,
+        zzm::cli::Commands::Info { verbose } => zzm::commands::info::cmd_info(&ctx, verbose).await,
+        zzm::cli::Commands::Config { command } => zzm::commands::config::cmd_config(&ctx, command).await,
+        zzm::cli::Commands::Ide { command } => zzm::commands::ide::cmd_ide(&ctx, command).await,
+        zzm::cli::Commands::Prune {
             dry_run,
             confirm: _,
-        } => commands::prune::cmd_prune(&ctx, dry_run, cli.json).await,
-        cli::Commands::Clean { all, dry_run } => {
-            commands::clean::cmd_clean(&ctx, all, dry_run).await
+        } => zzm::commands::prune::cmd_prune(&ctx, dry_run, cli.json).await,
+        zzm::cli::Commands::Clean { all, dry_run } => {
+            zzm::commands::clean::cmd_clean(&ctx, all, dry_run).await
         }
-        cli::Commands::Doctor => commands::info::cmd_doctor(&ctx).await,
-        cli::Commands::Completion { shell } => commands::completion::cmd_completion(&shell),
+        zzm::cli::Commands::Doctor => zzm::commands::info::cmd_doctor(&ctx).await,
+        zzm::cli::Commands::Completion { shell } => zzm::commands::completion::cmd_completion(&shell),
     }
 }
