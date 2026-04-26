@@ -34,7 +34,7 @@ pub async fn cmd_setup(
     let installed = manager.install(&version, false, None).await?;
 
     // 切换到安装的版本
-    manager.use_version(installed.version()).await?;
+    manager.use_version(&installed.version).await?;
 
     // 如果指定 --with-zls
     if with_zls {
@@ -46,10 +46,10 @@ pub async fn cmd_setup(
         let zls_manager = ctx.zls_manager(callbacks)?;
         let compat_info = zls_manager
             .api_client()
-            .find_compatible_version(installed.version())
+            .find_compatible_version(&installed.version)
             .await?;
         zls_manager
-            .install(&compat_info.version, false, Some(installed.version()))
+            .install(&compat_info.version, false, Some(&installed.version))
             .await?;
     }
 
@@ -135,30 +135,28 @@ pub async fn cmd_sync(ctx: &AppContext, _dry_run: bool, json: bool) -> Result<()
 
     match (zig_current, zls_current) {
         (Some(zig), Some(zls)) => {
-            let status = compatibility::CompatibilityChecker::check(zig.version(), zls.version());
+            let status = compatibility::CompatibilityChecker::check(&zig.version, &zls.version);
             match status {
                 compatibility::CompatibilityStatus::Compatible => {
                     on_success(&format!(
                         "Zig {} 与 ZLS {} 已兼容，无需同步",
-                        zig.version(),
-                        zls.version()
+                        zig.version, zls.version
                     ));
                 }
                 _ => {
                     let recommended =
-                        compatibility::CompatibilityChecker::recommended_zls_version(zig.version());
+                        compatibility::CompatibilityChecker::recommended_zls_version(&zig.version);
                     if let Some(zls_ver) = recommended {
                         on_info(&format!(
                             "正在安装推荐 ZLS 版本 {} 以匹配 Zig {}...",
-                            zls_ver,
-                            zig.version()
+                            zls_ver, zig.version
                         ));
                         let compat_info = zls_manager
                             .api_client()
-                            .find_compatible_version(zig.version())
+                            .find_compatible_version(&zig.version)
                             .await?;
                         zls_manager
-                            .install(&compat_info.version, false, Some(zig.version()))
+                            .install(&compat_info.version, false, Some(&zig.version))
                             .await?;
                         on_success("同步完成");
                     } else {
@@ -170,14 +168,14 @@ pub async fn cmd_sync(ctx: &AppContext, _dry_run: bool, json: bool) -> Result<()
         (Some(zig), None) => {
             on_info(&format!(
                 "当前 Zig {} 没有 ZLS，正在安装兼容版本...",
-                zig.version()
+                zig.version
             ));
             let compat_info = zls_manager
                 .api_client()
-                .find_compatible_version(zig.version())
+                .find_compatible_version(&zig.version)
                 .await?;
             zls_manager
-                .install(&compat_info.version, false, Some(zig.version()))
+                .install(&compat_info.version, false, Some(&zig.version))
                 .await?;
             on_success("同步完成");
         }

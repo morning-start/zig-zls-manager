@@ -1,5 +1,6 @@
 use crate::commands::AppContext;
 use crate::core::callbacks::InstallCallbacks;
+use crate::core::tool_manager::ToolKind;
 use crate::output::console_output;
 use crate::output::json_output;
 use crate::output::table_output::{
@@ -55,11 +56,11 @@ pub async fn cmd_list(
             let rows: Vec<InstalledVersionRow> = versions
                 .iter()
                 .map(|v| {
-                    let is_active = index.active_zig.as_ref() == Some(&v.version().to_string());
+                    let is_active = index.get_active(ToolKind::Zig) == Some(v.version.as_str());
                     InstalledVersionRow {
-                        version: v.version().to_string(),
+                        version: v.version.clone(),
                         channel: v.channel().map(|c| c.to_string()).unwrap_or_default(),
-                        path: v.install_path().to_string_lossy().to_string(),
+                        path: v.install_path.to_string_lossy().to_string(),
                         status: if is_active {
                             "=> 当前".to_string()
                         } else {
@@ -90,13 +91,13 @@ pub async fn cmd_current(ctx: &AppContext, json: bool) -> Result<(), ZzmError> {
     if json {
         let result = serde_json::json!({
             "zig": zig_current.as_ref().map(|v| serde_json::json!({
-                "version": v.version(),
-                "path": v.install_path().to_string_lossy(),
+                "version": v.version,
+                "path": v.install_path.to_string_lossy(),
                 "channel": v.channel().map(|c| c.to_string()),
             })),
             "zls": zls_current.as_ref().map(|v| serde_json::json!({
-                "version": v.version(),
-                "path": v.install_path().to_string_lossy(),
+                "version": v.version,
+                "path": v.install_path.to_string_lossy(),
                 "zig_version": v.zig_version(),
             })),
         });
@@ -105,8 +106,8 @@ pub async fn cmd_current(ctx: &AppContext, json: bool) -> Result<(), ZzmError> {
         match &zig_current {
             Some(v) => console_output::print_success(&format!(
                 "Zig {} ({})",
-                v.version(),
-                v.install_path().to_string_lossy()
+                v.version,
+                v.install_path.to_string_lossy()
             )),
             None => console_output::print_info("当前没有激活的 Zig 版本"),
         }
@@ -114,8 +115,8 @@ pub async fn cmd_current(ctx: &AppContext, json: bool) -> Result<(), ZzmError> {
         match &zls_current {
             Some(v) => console_output::print_success(&format!(
                 "ZLS {} ({})",
-                v.version(),
-                v.install_path().to_string_lossy()
+                v.version,
+                v.install_path.to_string_lossy()
             )),
             None => console_output::print_info("当前没有激活的 ZLS 版本"),
         }

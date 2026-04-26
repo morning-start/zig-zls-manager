@@ -1,5 +1,6 @@
 use crate::commands::AppContext;
 use crate::core::callbacks::InstallCallbacks;
+use crate::core::tool_manager::ToolKind;
 use crate::output::console_output;
 use crate::output::table_output::render_kv_table;
 use crate::platform;
@@ -25,10 +26,10 @@ pub async fn cmd_info(ctx: &AppContext, _verbose: bool) -> Result<(), ZzmError> 
 
     let zig_version = zig_current
         .as_ref()
-        .map_or_else(|| "未设置".to_string(), |v| v.version().to_string());
+        .map_or_else(|| "未设置".to_string(), |v| v.version.clone());
     let zls_version = zls_current
         .as_ref()
-        .map_or_else(|| "未设置".to_string(), |v| v.version().to_string());
+        .map_or_else(|| "未设置".to_string(), |v| v.version.clone());
     let install_dir = platform.default_install_dir().to_string_lossy().to_string();
     let bin_dir = platform.bin_dir().to_string_lossy().to_string();
     let in_path = if platform.is_bin_in_path() {
@@ -160,12 +161,18 @@ fn check_installed_versions(ctx: &AppContext, platform: &dyn crate::platform::Pl
     }
     let path_mgr = ctx.path_manager();
     if let Ok(index) = path_mgr.read_installed_index() {
-        println!("  已安装 Zig: {} 个版本", index.zig_versions.len());
-        println!("  已安装 ZLS: {} 个版本", index.zls_versions.len());
-        if let Some(ref active) = index.active_zig {
+        println!(
+            "  已安装 Zig: {} 个版本",
+            index.get_versions(ToolKind::Zig).len()
+        );
+        println!(
+            "  已安装 ZLS: {} 个版本",
+            index.get_versions(ToolKind::Zls).len()
+        );
+        if let Some(active) = index.get_active(ToolKind::Zig) {
             println!("  当前 Zig: {active}");
         }
-        if let Some(ref active) = index.active_zls {
+        if let Some(active) = index.get_active(ToolKind::Zls) {
             println!("  当前 ZLS: {active}");
         }
     }
@@ -205,7 +212,7 @@ fn check_recommended_config(ctx: &AppContext, platform: &dyn crate::platform::Pl
     );
     let path_mgr = ctx.path_manager();
     if let Ok(index) = path_mgr.read_installed_index()
-        && index.active_zls.is_some()
+        && index.get_active(ToolKind::Zls).is_some()
     {
         println!(
             "  ZLS_HOME={} (设置后 zls 将自动使用当前版本)",

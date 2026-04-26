@@ -30,10 +30,10 @@ pub async fn cmd_install(
         let zls_manager = ctx.zls_manager(callbacks)?;
         let compat_info = zls_manager
             .api_client()
-            .find_compatible_version(zig_installed.version())
+            .find_compatible_version(&zig_installed.version)
             .await?;
         zls_manager
-            .install(&compat_info.version, force, Some(zig_installed.version()))
+            .install(&compat_info.version, force, Some(&zig_installed.version))
             .await?;
     }
 

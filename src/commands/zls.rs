@@ -1,6 +1,7 @@
 use crate::cli;
 use crate::commands::AppContext;
 use crate::core::callbacks::InstallCallbacks;
+use crate::core::tool_manager::ToolKind;
 use crate::output::console_output;
 use crate::output::json_output;
 use crate::output::table_output::{
@@ -70,11 +71,11 @@ pub async fn cmd_zls(
                         .iter()
                         .map(|v| {
                             let is_active =
-                                index.active_zls.as_ref() == Some(&v.version().to_string());
+                                index.get_active(ToolKind::Zls) == Some(v.version.as_str());
                             InstalledVersionRow {
-                                version: v.version().to_string(),
+                                version: v.version.clone(),
                                 channel: v.zig_version().unwrap_or_default().to_string(),
-                                path: v.install_path().to_string_lossy().to_string(),
+                                path: v.install_path.to_string_lossy().to_string(),
                                 status: if is_active {
                                     "=> 当前".to_string()
                                 } else {
@@ -95,8 +96,8 @@ pub async fn cmd_zls(
             match &current {
                 Some(v) => console_output::print_success(&format!(
                     "ZLS {} ({})",
-                    v.version(),
-                    v.install_path().to_string_lossy()
+                    v.version,
+                    v.install_path.to_string_lossy()
                 )),
                 None => console_output::print_info("当前没有激活的 ZLS 版本"),
             }
