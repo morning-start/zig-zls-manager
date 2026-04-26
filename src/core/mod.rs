@@ -1,3 +1,4 @@
+pub mod callbacks;
 pub mod channel;
 pub mod compatibility;
 pub mod config;

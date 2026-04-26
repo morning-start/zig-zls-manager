@@ -1,6 +1,7 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+use crate::core::callbacks::InstallCallbacks;
 use crate::core::channel::Channel;
 use crate::infra::checksum;
 use crate::infra::downloader::Downloader;
@@ -8,7 +9,6 @@ use crate::infra::filesystem;
 use crate::infra::path_manager::{
     InstalledIndex, InstalledZigVersion, InstalledZlsVersion, PathManager,
 };
-use crate::output::console_output;
 use crate::platform::PlatformTrait;
 use crate::utils::error::ZzmError;
 use crate::utils::version::resolve_version;
@@ -88,6 +88,7 @@ pub struct ToolManager<T: VersionProvider> {
     path_manager: PathManager,
     api_client: T,
     downloader: Downloader,
+    callbacks: InstallCallbacks,
 }
 
 impl<T: VersionProvider> ToolManager<T> {
@@ -96,6 +97,7 @@ impl<T: VersionProvider> ToolManager<T> {
         kind: ToolKind,
         platform: Box<dyn PlatformTrait>,
         api_client: T,
+        callbacks: InstallCallbacks,
     ) -> Result<Self, ZzmError> {
         let path_manager = PathManager::new(platform.clone_box());
         let downloader = Downloader::new()?;
@@ -106,6 +108,7 @@ impl<T: VersionProvider> ToolManager<T> {
             path_manager,
             api_client,
             downloader,
+            callbacks,
         })
     }
 
@@ -127,7 +130,7 @@ impl<T: VersionProvider> ToolManager<T> {
 
         let tool_name = self.tool_name();
         let resolved = resolve_version(version)?;
-        console_output::print_step(
+        (self.callbacks.on_step)(
             1,
             5,
             &format!("解析 {tool_name} 版本: {version} → {resolved}"),
@@ -152,12 +155,12 @@ impl<T: VersionProvider> ToolManager<T> {
         }
 
         if already_installed && force {
-            console_output::print_info(&format!("强制重装 {tool_name} 版本: {resolved}"));
+            (self.callbacks.on_info)(&format!("强制重装 {tool_name} 版本: {resolved}"));
             let _ = self.uninstall(&resolved);
         }
 
         // 下载
-        console_output::print_step(2, 5, &format!("下载 {tool_name} {resolved}"));
+        (self.callbacks.on_step)(2, 5, &format!("下载 {tool_name} {resolved}"));
         let cache_dir = self.path_manager.cache_dir();
         let archive_path = self
             .downloader
@@ -165,7 +168,7 @@ impl<T: VersionProvider> ToolManager<T> {
             .await?;
 
         // 校验（仅 Zig 提供 shasum）
-        console_output::print_step(3, 5, "校验文件完整性");
+        (self.callbacks.on_step)(3, 5, "校验文件完整性");
         if !asset.shasum.is_empty() {
             let verified = checksum::verify_checksum_streaming(&archive_path, &asset.shasum)?;
             if !verified {
@@ -175,13 +178,13 @@ impl<T: VersionProvider> ToolManager<T> {
                     actual: String::new(), // 流式校验无法返回实际值
                 });
             }
-            console_output::print_success("校验通过");
+            (self.callbacks.on_success)("校验通过");
         } else {
-            console_output::print_warning("未提供校验和，跳过校验");
+            (self.callbacks.on_warning)("未提供校验和，跳过校验");
         }
 
         // 解压
-        console_output::print_step(4, 5, "解压安装");
+        (self.callbacks.on_step)(4, 5, "解压安装");
         let version_dir = self.version_dir(&resolved);
 
         if version_dir.exists() {
@@ -196,7 +199,7 @@ impl<T: VersionProvider> ToolManager<T> {
         self.post_install(&resolved)?;
 
         // 注册
-        console_output::print_step(5, 5, &format!("注册 {tool_name} 版本"));
+        (self.callbacks.on_step)(5, 5, &format!("注册 {tool_name} 版本"));
         let installed = self.create_installed_record(
             &resolved,
             version_dir,
@@ -209,7 +212,7 @@ impl<T: VersionProvider> ToolManager<T> {
         self.add_version_to_index(&mut index, &installed);
         self.path_manager.write_installed_index(&index)?;
 
-        console_output::print_success(&format!("{tool_name} {resolved} 安装完成"));
+        (self.callbacks.on_success)(&format!("{tool_name} {resolved} 安装完成"));
         Ok(installed)
     }
 
@@ -244,7 +247,7 @@ impl<T: VersionProvider> ToolManager<T> {
         self.remove_version_at(&mut index, pos);
         self.path_manager.write_installed_index(&index)?;
 
-        console_output::print_success(&format!("{tool_name} {resolved} 已卸载"));
+        (self.callbacks.on_success)(&format!("{tool_name} {resolved} 已卸载"));
         Ok(())
     }
 
@@ -272,7 +275,7 @@ impl<T: VersionProvider> ToolManager<T> {
 
         // 更新 default 目录符号链接
         if let Err(e) = self.create_default_symlink(&resolved) {
-            console_output::print_warning(&format!(
+            (self.callbacks.on_warning)(&format!(
                 "创建 {} 目录符号链接失败: {e}，不影响使用，但 {} 模式不可用",
                 self.default_link_name(),
                 self.home_env_name(),
@@ -284,14 +287,14 @@ impl<T: VersionProvider> ToolManager<T> {
         self.set_active_version(&mut index, Some(resolved.clone()));
         self.path_manager.write_installed_index(&index)?;
 
-        console_output::print_success(&format!("已切换到 {tool_name} {resolved}"));
-        console_output::print_info(&format!(
+        (self.callbacks.on_success)(&format!("已切换到 {tool_name} {resolved}"));
+        (self.callbacks.on_info)(&format!(
             "提示: 设置 {}={} 即可通过 {} 使用当前版本",
             self.home_env_name(),
             self.default_dir_path().display(),
             self.home_env_name(),
         ));
-        console_output::print_info("  或确保 bin 目录在 PATH 中（zzm info 查看详情）");
+        (self.callbacks.on_info)("  或确保 bin 目录在 PATH 中（zzm info 查看详情）");
         Ok(resolved)
     }
 

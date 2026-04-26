@@ -1,4 +1,4 @@
-use crate::output::console_output;
+use crate::core::callbacks::InstallCallbacks;
 use crate::utils::version::Version;
 
 /// 兼容性状态
@@ -84,25 +84,33 @@ impl CompatibilityChecker {
 
     /// 检查兼容性并输出警告（不阻止操作）
     #[allow(dead_code)] // 预留: 在 use/switch 命令中调用
-    pub fn check_and_warn(zig_version: &str, zls_version: &str) {
+    pub fn check_and_warn(zig_version: &str, zls_version: &str, callbacks: &InstallCallbacks) {
         match Self::check(zig_version, zls_version) {
             CompatibilityStatus::Compatible => {}
             CompatibilityStatus::LikelyCompatible { reason } => {
-                console_output::print_warning(&format!(
+                (callbacks.on_warning)(&format!(
                     "Zig {zig_version} 与 ZLS {zls_version} 可能不完全兼容: {reason}"
                 ));
             }
             CompatibilityStatus::Incompatible { reason } => {
-                console_output::print_warning(&format!(
+                (callbacks.on_warning)(&format!(
                     "Zig {zig_version} 与 ZLS {zls_version} 不兼容: {reason}"
                 ));
             }
             CompatibilityStatus::Unknown { reason } => {
-                console_output::print_warning(&format!(
+                (callbacks.on_warning)(&format!(
                     "无法确认 Zig {zig_version} 与 ZLS {zls_version} 的兼容性: {reason}"
                 ));
             }
         }
+    }
+
+    /// 检查兼容性并输出警告（使用默认控制台输出）
+    ///
+    /// 便捷方法，适用于不需要自定义回调的场景
+    #[allow(dead_code)]
+    pub fn check_and_warn_console(zig_version: &str, zls_version: &str) {
+        Self::check_and_warn(zig_version, zls_version, &InstallCallbacks::console());
     }
 
     /// 获取推荐搭配的 ZLS 版本
