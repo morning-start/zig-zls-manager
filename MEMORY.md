@@ -11,13 +11,13 @@
   - 自动化 IDE (VS Code, Neovim) 配置生成。
 
 ## 当前状态 (2026-04-26)
-- **阶段**: Phase 1 MVP 完成 + 架构优化重构完成 + 阶段 1(T-060+T-066) 完成
+- **阶段**: Phase 1 MVP 完成 + 架构优化重构完成 + 阶段 1(T-060+T-066) 完成 + 阶段 2(T-061) 完成
 - **编译**: ✅ cargo clippy -D warnings 零警告通过
-- **测试**: ✅ 190/190 全部通过
+- **测试**: ✅ 194/194 全部通过
 - **架构变更**: ZigManager/ZlsManager → ToolManager<T: VersionProvider> 泛型抽象
 - **新增模块**: core::channel, core::tool_manager, core::callbacks, infra::api_cache
 - **删除模块**: core::zig_manager, core::zls_manager
-- **最近新增**: HTTP Range 断点续传（.part 文件机制）+ 远程列表日期列 + 大小格式化 + InstallCallbacks 输出解耦 + OnceLock 懒加载
+- **最近新增**: HTTP Range 断点续传 + InstallCallbacks 输出解耦 + OnceLock 懒加载 + ToolIndexEntry 统一数据结构（消除 15+ match 分支）
 - **待办**: 推送到 GitHub → 创建 Tag → 创建 Release
 
 ## 架构优化要点
