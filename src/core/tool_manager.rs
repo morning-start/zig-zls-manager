@@ -21,6 +21,22 @@ pub enum ToolKind {
     Zls,
 }
 
+/// 下载结果（仅包含下载+校验后的信息，不含安装注册数据）
+///
+/// 用于并行下载场景：先 `download_only` 获取缓存路径和版本信息，
+/// 再 `install_from_cache` 完成解压和注册。
+pub struct DownloadedAsset {
+    /// 解析后的版本号
+    pub resolved: String,
+    /// 缓存中的归档文件路径
+    pub archive_path: std::path::PathBuf,
+    /// 版本通道
+    pub channel: Channel,
+    /// SHA256 校验和（可能为空，预留字段）
+    #[allow(dead_code)] // 预留: 校验和可用于安装后二次验证
+    pub shasum: String,
+}
+
 /// 下载资源信息（统一抽象）
 ///
 /// 将 Zig 的 `ZigPlatformAsset` 和 ZLS 的 `GithubAsset` 统一为同一结构
@@ -228,6 +244,131 @@ impl<T: VersionProvider> ToolManager<T> {
         self.path_manager.write_installed_index(&index)?;
 
         (self.callbacks.on_success)(&format!("{tool_name} {resolved} 安装完成"));
+        Ok(installed)
+    }
+
+    /// 仅下载并校验，不解压和注册
+    ///
+    /// 用于并行下载场景：先并行下载 Zig 和 ZLS 的归档文件，
+    /// 再串行调用 `install_from_cache` 完成解压和注册。
+    pub async fn download_only(
+        &self,
+        version: &str,
+        force: bool,
+    ) -> Result<DownloadedAsset, ZzmError> {
+        self.initialize()?;
+
+        let tool_name = self.tool_name();
+        let resolved = resolve_version(version)?;
+        (self.callbacks.on_step)(
+            1,
+            3,
+            &format!("解析 {tool_name} 版本: {version} → {resolved}"),
+        );
+
+        // 获取版本信息
+        let version_info = self.api_client.get_version_info(&resolved).await?;
+
+        let asset = version_info
+            .asset
+            .as_ref()
+            .ok_or_else(|| ZzmError::VersionNotFound {
+                version: format!("{tool_name} {resolved} (当前平台无匹配的二进制)"),
+            })?;
+
+        // 检查是否已安装
+        let index = self.path_manager.read_installed_index()?;
+        let already_installed = self.is_version_installed(&index, &resolved);
+
+        if already_installed && !force {
+            return Err(ZzmError::AlreadyInstalled { version: resolved });
+        }
+
+        if already_installed && force {
+            (self.callbacks.on_info)(&format!("强制重装 {tool_name} 版本: {resolved}"));
+        }
+
+        // 下载
+        (self.callbacks.on_step)(2, 3, &format!("下载 {tool_name} {resolved}"));
+        let cache_dir = self.path_manager.cache_dir();
+        let archive_path = self
+            .downloader
+            .download_to_cache(&asset.url, &cache_dir, &asset.filename)
+            .await?;
+
+        // 校验
+        (self.callbacks.on_step)(3, 3, "校验文件完整性");
+        if !asset.shasum.is_empty() {
+            let verified = checksum::verify_checksum_streaming(&archive_path, &asset.shasum)?;
+            if !verified {
+                let _ = std::fs::remove_file(&archive_path);
+                return Err(ZzmError::ChecksumMismatch {
+                    expected: asset.shasum.clone(),
+                    actual: String::new(),
+                });
+            }
+            (self.callbacks.on_success)("校验通过");
+        } else {
+            (self.callbacks.on_warning)("未提供校验和，跳过校验");
+        }
+
+        Ok(DownloadedAsset {
+            resolved,
+            archive_path,
+            channel: version_info.channel,
+            shasum: asset.shasum.clone(),
+        })
+    }
+
+    /// 从已下载的缓存文件安装（解压 + 后处理 + 注册）
+    ///
+    /// 配合 `download_only` 使用，实现并行下载 + 串行安装。
+    pub fn install_from_cache(
+        &self,
+        downloaded: &DownloadedAsset,
+        force: bool,
+        zig_version: Option<&str>,
+    ) -> Result<ToolIndexEntry, ZzmError> {
+        let tool_name = self.tool_name();
+        let resolved = &downloaded.resolved;
+
+        // 处理已安装版本（强制重装时移除旧版本）
+        let mut index = self.path_manager.read_installed_index()?;
+        let already_installed = self.is_version_installed(&index, resolved);
+
+        if already_installed && force {
+            self.remove_installed_from_index(&mut index, resolved)?;
+        }
+
+        // 解压
+        (self.callbacks.on_step)(1, 3, "解压安装");
+        let version_dir = self.version_dir(resolved);
+
+        if version_dir.exists() {
+            filesystem::remove_dir_all(&version_dir)?;
+        }
+
+        let extracted_root = filesystem::extract_archive(&downloaded.archive_path, &version_dir)?;
+        let tmp_name = format!("tmp_move_{}", self.kind_suffix());
+        filesystem::reorganize_extracted_files(&extracted_root, &version_dir, &tmp_name)?;
+
+        // 工具特定的后处理
+        self.post_install(resolved)?;
+
+        // 注册（复用已有索引，无需重新读取）
+        (self.callbacks.on_step)(2, 3, &format!("注册 {tool_name} 版本"));
+        let installed = self.create_installed_record(
+            resolved,
+            version_dir,
+            &downloaded.channel,
+            zig_version,
+        );
+
+        self.remove_version_from_index(&mut index, resolved);
+        self.add_version_to_index(&mut index, &installed);
+        self.path_manager.write_installed_index(&index)?;
+
+        (self.callbacks.on_step)(3, 3, &format!("{tool_name} {resolved} 安装完成"));
         Ok(installed)
     }
 

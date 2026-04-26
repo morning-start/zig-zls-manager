@@ -185,33 +185,45 @@ fn print_install_plan(zig_version: &str, zls_version: Option<&str>) {
 }
 
 /// 执行安装计划
+///
+/// 当同时安装 Zig 和 ZLS 时，并行下载两者，串行解压注册。
 async fn execute_install_plan(
     ctx: &AppContext,
     zig_version: &str,
     zls_version: Option<&str>,
     json: bool,
 ) -> Result<(), ZzmError> {
-    // 安装 Zig
-    let callbacks = if json {
+    let zig_callbacks = if json {
         InstallCallbacks::silent()
     } else {
         InstallCallbacks::console()
     };
-    let zig_manager = ctx.zig_manager(callbacks)?;
-    let installed = zig_manager.install(zig_version, false, None).await?;
-    zig_manager.use_version(&installed.version).await?;
+    let zig_manager = ctx.zig_manager(zig_callbacks)?;
 
-    // 安装 ZLS
     if let Some(zv) = zls_version {
-        let callbacks = if json {
+        // 并行下载 Zig 和 ZLS
+        let zls_callbacks = if json {
             InstallCallbacks::silent()
         } else {
             InstallCallbacks::console()
         };
-        let zls_manager = ctx.zls_manager(callbacks)?;
-        zls_manager
-            .install(zv, false, Some(&installed.version))
-            .await?;
+        let zls_manager = ctx.zls_manager(zls_callbacks)?;
+
+        let (zig_result, zls_result) = tokio::join!(
+            zig_manager.download_only(zig_version, false),
+            zls_manager.download_only(zv, false),
+        );
+        let zig_downloaded = zig_result?;
+        let zls_downloaded = zls_result?;
+
+        // 串行解压注册（先 Zig 后 ZLS）
+        let installed = zig_manager.install_from_cache(&zig_downloaded, false, None)?;
+        zig_manager.use_version(&installed.version).await?;
+        zls_manager.install_from_cache(&zls_downloaded, false, Some(&installed.version))?;
+    } else {
+        // 仅安装 Zig
+        let installed = zig_manager.install(zig_version, false, None).await?;
+        zig_manager.use_version(&installed.version).await?;
     }
 
     Ok(())
