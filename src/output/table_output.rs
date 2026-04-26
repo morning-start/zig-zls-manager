@@ -1,65 +1,116 @@
-use tabled::{Table, Tabled, settings::Style};
+use serde::Serialize;
 
-/// 版本列表行数据
-#[derive(Tabled)]
-#[allow(dead_code)] // 预留: 版本列表表格渲染
-pub struct VersionRow {
-    #[tabled(rename = "版本")]
-    pub version: String,
-    #[tabled(rename = "通道")]
-    pub channel: String,
-    #[tabled(rename = "状态")]
-    pub status: String,
-}
+use crate::core::tool_manager::{DownloadAsset, ToolKind, VersionInfo};
+use crate::infra::path_manager::ToolIndexEntry;
+use crate::output::dispatcher::OutputRow;
 
-/// 已安装版本行数据
-#[derive(Tabled)]
-pub struct InstalledVersionRow {
-    #[tabled(rename = "版本")]
+/// 远程版本输出行
+///
+/// 统一 Zig/ZLS 远程版本的输出格式
+#[derive(Debug, Clone, Serialize)]
+pub struct RemoteVersionOutput {
+    /// 版本号
     pub version: String,
-    #[tabled(rename = "通道")]
+    /// 通道
     pub channel: String,
-    #[tabled(rename = "安装路径")]
-    pub path: String,
-    #[tabled(rename = "状态")]
-    pub status: String,
-}
-
-/// 远程版本行数据
-#[derive(Tabled)]
-pub struct RemoteVersionRow {
-    #[tabled(rename = "版本")]
-    pub version: String,
-    #[tabled(rename = "通道")]
-    pub channel: String,
-    #[tabled(rename = "日期")]
-    pub date: String,
-    #[tabled(rename = "大小")]
-    pub size: String,
-    #[tabled(rename = "已安装")]
+    /// 发布日期
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<String>,
+    /// 下载资源信息
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset: Option<DownloadAsset>,
+    /// 是否已安装标记
+    #[serde(skip_serializing_if = "str::is_empty")]
     pub installed: String,
 }
 
-/// 渲染版本列表表格
-#[allow(dead_code)] // 预留: 版本列表表格渲染
-pub fn render_version_table(rows: &[VersionRow]) {
-    let mut table = Table::new(rows);
-    table.with(Style::rounded());
-    println!("{table}");
+impl From<&VersionInfo> for RemoteVersionOutput {
+    fn from(v: &VersionInfo) -> Self {
+        Self {
+            version: v.version.clone(),
+            channel: v.channel.to_string(),
+            date: v.date.clone(),
+            asset: v.asset.clone(),
+            installed: String::new(),
+        }
+    }
 }
 
-/// 渲染已安装版本表格
-pub fn render_installed_table(rows: &[InstalledVersionRow]) {
-    let mut table = Table::new(rows);
-    table.with(Style::rounded());
-    println!("{table}");
+impl OutputRow for RemoteVersionOutput {
+    fn to_table_row(&self) -> Vec<String> {
+        vec![
+            self.version.clone(),
+            self.channel.clone(),
+            self.date.clone().unwrap_or_default(),
+            self.asset
+                .as_ref()
+                .map(|a| a.size.clone())
+                .unwrap_or_default(),
+            self.installed.clone(),
+        ]
+    }
+
+    fn table_headers() -> Vec<&'static str> {
+        vec!["版本", "通道", "日期", "大小", "已安装"]
+    }
 }
 
-/// 渲染远程版本表格
-pub fn render_remote_table(rows: &[RemoteVersionRow]) {
-    let mut table = Table::new(rows);
-    table.with(Style::rounded());
-    println!("{table}");
+/// 已安装版本输出行
+///
+/// 统一 Zig/ZLS 已安装版本的输出格式
+#[derive(Debug, Clone, Serialize)]
+pub struct InstalledVersionOutput {
+    /// 版本号
+    pub version: String,
+    /// 通道（Zig）或 Zig 版本（ZLS）
+    pub channel_or_zig_ver: String,
+    /// 安装路径
+    pub path: String,
+    /// 状态（当前激活标记）
+    pub status: String,
+}
+
+impl OutputRow for InstalledVersionOutput {
+    fn to_table_row(&self) -> Vec<String> {
+        vec![
+            self.version.clone(),
+            self.channel_or_zig_ver.clone(),
+            self.path.clone(),
+            self.status.clone(),
+        ]
+    }
+
+    fn table_headers() -> Vec<&'static str> {
+        vec!["版本", "通道", "安装路径", "状态"]
+    }
+}
+
+/// 从 ToolIndexEntry 列表构建已安装版本输出行
+pub fn build_installed_rows(
+    entries: &[ToolIndexEntry],
+    kind: ToolKind,
+    active_version: Option<&str>,
+) -> Vec<InstalledVersionOutput> {
+    entries
+        .iter()
+        .map(|v| {
+            let is_active = active_version == Some(v.version.as_str());
+            let channel_or_zig_ver = match kind {
+                ToolKind::Zig => v.channel().map(|c| c.to_string()).unwrap_or_default(),
+                ToolKind::Zls => v.zig_version().unwrap_or_default().to_string(),
+            };
+            InstalledVersionOutput {
+                version: v.version.clone(),
+                channel_or_zig_ver,
+                path: v.install_path.to_string_lossy().to_string(),
+                status: if is_active {
+                    "=> 当前".to_string()
+                } else {
+                    String::new()
+                },
+            }
+        })
+        .collect()
 }
 
 /// 渲染通用键值对表格
