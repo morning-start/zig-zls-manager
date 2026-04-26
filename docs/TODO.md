@@ -2,13 +2,13 @@
 
 ## 📋 文档信息
 
-- **版本**: v4.2.0
+- **版本**: v4.4.0
 - **更新日期**: 2026-04-26
 - **适用版本**: zig-zls-manager v0.1.0+
 - **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [architecture-optimization-v2.md](./analyses/architecture-optimization-v2.md)
-- **当前阶段**: Phase 1 MVP + 架构优化重构完成 → Phase 2 架构彻底化（T-061 完成）+ 功能实现
+- **当前阶段**: Phase 1 MVP + 架构优化重构完成 + P0/P1 全部完成
 - **编译状态**: ✅ cargo clippy -D warnings 零警告
-- **测试状态**: ✅ 194/194 全部通过
+- **测试状态**: ✅ 214/214 全部通过
 
 ---
 
@@ -26,7 +26,13 @@
 | T-052 | Zig API serde 模型修复 | 重写 `ZigVersionEntry`/`ZigPlatformAsset` 适配实际 API (+6 测试) |
 | T-043 | 数字字面量可读性 | 添加下划线分隔符 |
 | T-061 | 泛型彻底化 — ToolIndexEntry 统一数据结构 | `InstalledIndex` → `HashMap<ToolKind, Vec<ToolIndexEntry>>`，消除 15+ match 分支 |
+| T-062 | 交互式 Setup Wizard | `cmd_setup_wizard()` 使用 dialoguer 交互式引导 |
+| T-063 | `zzm restore` 命令 | 新增 `ProjectManager` + `restore` 子命令 |
+| T-064 | Commands 层 OutputDispatcher | `OutputRow` trait + `output_list()` 统一调度，消除重复 if json 分支 |
+| T-065 | ProjectManager 完整实现 | `save`/`set_zig_version`/`set_zls_version`/`resolve_zls_version`/`is_version_installed` |
 | T-066 | AppContext OnceCell 懒加载 | `PathManager` 改为 `OnceLock` 单例复用，`path_manager()` 返回引用 |
+| T-067 | `zzm sync` 功能增强 | 兼容性矩阵推荐 + dry-run + LikelyCompatible 状态处理 |
+| T-068 | `zzm pair` 命令 | 手动绑定 Zig↔ZLS 版本关系，写入 .zzmrc，`--show`/`--zls`/`--compatibility` |
 
 ---
 
@@ -60,79 +66,75 @@
 - **工作量**: 5 天 | **风险**: 中
 - **验证**: 190+ 测试全通过 + clippy 零警告 + 旧索引文件兼容读取
 
-### T-062: 交互式 Setup Wizard
+### T-062: ~~交互式 Setup Wizard~~ ✅ 已完成
 
 - **问题**: `spec.md` US-01 定义但未实现
 - **方案**: 交互式引导用户选择 Zig 版本 → 推荐 ZLS 版本 → 确认安装 → 配置 IDE
-- **依赖**: T-060（输出解耦）、T-065（ProjectManager）
+- **实现**: 使用 `dialoguer` 实现交互式向导，支持远程版本列表选择、ZLS 兼容推荐、IDE 配置、PATH 提示
 - **涉及文件**: `src/commands/setup.rs`（重写）
 - **工作量**: 3 天 | **风险**: 低
+- **验证**: clippy 零警告 + 194 测试全通过
 
-### T-063: `zzm restore` 命令
+### T-063: ~~`zzm restore` 命令~~ ✅ 已完成
 
 - **问题**: `spec.md` US-04 定义但未实现
 - **方案**: 读取项目 `.zzmrc` 配置 → 安装缺失的 Zig/ZLS 版本 → 切换到项目指定版本
-- **依赖**: T-065（ProjectManager）
-- **涉及文件**: `src/commands/restore.rs`（新增）
+- **实现**: 新增 `ProjectManager` 支持 `.zzmrc`/`.zzm/config.toml` 递归查找（JSON/TOML 双格式），`restore` 命令自动安装+切换
+- **涉及文件**: `src/core/project.rs`（新增）, `src/commands/restore.rs`（新增）, `src/cli.rs`, `src/main.rs`
 - **工作量**: 2 天 | **风险**: 低
+- **验证**: clippy 零警告 + 202 测试全通过（+8 project 模块测试）
 
 ---
 
-## 🟡 P1 - 应该完成（架构完善 + 重要功能）
+## 🟡 P1 - 应该完成（架构完善 + 重要功能）— ✅ 全部完成
 
-### T-064: Commands 层数据转换抽象（OutputDispatcher）
+### T-064: ~~Commands 层数据转换抽象（OutputDispatcher）~~ ✅ 已完成
 
 - **问题**: 4 个命令重复"数据转换 + 输出调度"逻辑（`if json { json_output } else { table_output }`）
 - **方案**: 提取 `OutputRow` trait + `output_list()` 统一调度函数
 - **实现**:
-  ```rust
-  pub trait OutputRow {
-      fn to_json(&self) -> serde_json::Value;
-      fn to_table_row(&self) -> Vec<String>;
-      fn table_headers() -> Vec<&'static str>;
-  }
-  pub fn output_list<T: OutputRow>(data: &[T], json: bool) { ... }
-  ```
-- **涉及文件**: `src/output/`（新增 dispatcher）, `src/commands/list.rs`, `src/commands/zls.rs`, `src/commands/install.rs`, `src/commands/info.rs`
-- **工作量**: 2 天 | **风险**: 低
+  - 新增 `src/output/dispatcher.rs`：`OutputRow` trait + `output_list()`/`output_single()`/`output_json_if()` 三级调度
+  - 重写 `src/output/table_output.rs`：`RemoteVersionOutput`/`InstalledVersionOutput` 实现 OutputRow
+  - 重构 `src/commands/list.rs`、`src/commands/zls.rs`：使用 dispatcher 替代手动 if json 分支
+- **涉及文件**: `src/output/dispatcher.rs`(新增), `src/output/table_output.rs`(重写), `src/commands/list.rs`, `src/commands/zls.rs`
+- **验证**: 214 测试全通过 + clippy 零警告
 
-### T-065: ProjectManager 完整实现
+### T-065: ~~ProjectManager 完整实现~~ ✅ 已完成
 
 - **问题**: `.zzmrc` 项目级配置是核心差异化功能，当前为空壳
 - **方案**: 实现完整的 `ProjectManager`
 - **实现**:
-  ```rust
-  pub struct ProjectConfig {
-      pub zig: String,
-      pub zls: Option<String>,
-      pub compatibility: CompatibilityMode,
-      pub ide: Option<String>,
-      pub notes: Option<String>,
-  }
-  impl ProjectManager {
-      pub fn find_project_config(&self, from_dir: &Path) -> Option<(PathBuf, ProjectConfig)>;
-      pub fn init(&self, dir: &Path, config: &ProjectConfig) -> Result<()>;
-      pub async fn restore(&self, dir: &Path) -> Result<RestoreResult>;
-  }
-  ```
-- **查找策略**: 从当前目录向上递归查找 `.zzmrc`（JSON/TOML），也支持 `.zzm/config.toml` 目录格式
-- **涉及文件**: `src/core/project.rs`（新增/重写）
-- **工作量**: 3 天 | **风险**: 低
+  - `save()`: 覆盖写入项目配置（自动创建）
+  - `set_zig_version()`/`set_zls_version()`: 增量更新配置字段
+  - `resolve_zls_version()`: 统一 ZLS 版本解析（显式指定 > Auto 推荐 > None）
+  - `is_version_installed()`: 静态方法检查版本安装状态
+  - `RestoreResult` 补充 `has_changes()` 方法
+- **涉及文件**: `src/core/project.rs`(重写), `src/commands/restore.rs`(重构)
+- **验证**: +6 新测试 (save/set/resolve/restore_result/compatibility_equality)
 
-### T-067: `zzm sync` 功能增强
+### T-067: ~~`zzm sync` 功能增强~~ ✅ 已完成
 
 - **问题**: 当前 sync 功能过于简单，未基于兼容性矩阵推荐最优组合
-- **方案**: 基于兼容性矩阵推荐 Zig+ZLS 最优版本组合
-- **依赖**: T-065（ProjectManager）
-- **涉及文件**: `src/commands/setup.rs`
-- **工作量**: 2 天 | **风险**: 低
+- **方案**: 增强为完整的兼容性检查 + 推荐安装流程
+- **实现**:
+  - 新增 `LikelyCompatible` 状态处理（可能兼容→提示但不强制）
+  - `--dry-run` 仅展示推荐操作，不实际执行
+  - 未指定 ZLS 时自动推荐兼容版本
+- **涉及文件**: `src/commands/setup.rs`（`cmd_sync` 重写）
+- **验证**: clippy 零警告
 
-### T-068: `zzm pair` 手动绑定版本关系
+### T-068: ~~`zzm pair` 手动绑定版本关系~~ ✅ 已完成
 
 - **问题**: `spec.md` §2.1.3 定义但未实现
-- **方案**: 允许用户手动指定 Zig↔ZLS 版本对应关系，写入兼容性矩阵
-- **涉及文件**: `src/commands/pair.rs`（新增）
-- **工作量**: 1.5 天 | **风险**: 低
+- **方案**: 新增 `zzm pair` 子命令，手动绑定 Zig↔ZLS 版本关系
+- **实现**:
+  - `zzm pair <zig_version>`: 绑定版本组合到 .zzmrc
+  - `--zls <version>`: 手动指定 ZLS 版本（不指定则自动推荐）
+  - `--compatibility <mode>`: 设置兼容性模式（strict/loose/auto，默认 auto）
+  - `--show`: 显示当前项目绑定
+  - 已有 .zzmrc 时更新而非覆盖
+- **涉及文件**: `src/commands/pair.rs`(新增), `src/cli.rs`, `src/main.rs`
+- **验证**: clippy 零警告
 
 ---
 
@@ -252,9 +254,9 @@
 ## 📐 实施路线图
 
 ```
-阶段 1 ✅ ─→ 阶段 2 ✅ ──→ 阶段 3 ───→ 阶段 4 ────→ 阶段 5
-T-060 ✅      T-061 ✅       T-064        T-062         T-067
-T-066 ✅      T-064         T-065        T-063         T-068
+阶段 1 ✅ ─→ 阶段 2 ✅ ──→ 阶段 3 ───→ 阶段 4 ✅ ──→ 阶段 5
+T-060 ✅      T-061 ✅       T-064        T-062 ✅       T-067
+T-066 ✅      T-064         T-065        T-063 ✅       T-068
 (输出         (泛型         (Commands    (Wizard       (sync增强
  解耦+        彻底化+       数据抽象+    +restore)     +pair)
  OnceCell)   Commands)    Project)
@@ -265,7 +267,7 @@ T-066 ✅      T-064         T-065        T-063         T-068
 | **阶段 1** | T-060 Core 层输出解耦 + T-066 OnceCell | ✅ `cargo test` 190/190 + clippy 零警告 |
 | **阶段 2** | T-061 泛型彻底化 + T-064 Commands 数据抽象 | 194+ 测试全通过 + clippy 零警告 |
 | **阶段 3** | T-065 ProjectManager 完整实现 | 创建测试项目，验证 `.zzmrc` 读取/写入 |
-| **阶段 4** | T-062 Interactive Wizard + T-063 restore 命令 | 手动测试新用户体验流程 |
+| **阶段 4** | T-062 Interactive Wizard + T-063 restore 命令 | ✅ 202 测试全通过 + clippy 零警告 |
 | **阶段 5** | T-067 sync 增强 + T-068 pair 命令 + P2/P3 项 | 手动测试 + 集成测试 |
 
 ---
@@ -274,6 +276,7 @@ T-066 ✅      T-064         T-065        T-063         T-068
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
+| 2026-04-26 | v4.3.0 | 完成 T-062 交互式 Setup Wizard（dialoguer 向导）+ T-063 restore 命令（ProjectManager + .zzmrc），P0 全部完成 |
 | 2026-04-26 | v4.2.0 | 完成 T-061 泛型彻底化：ToolIndexEntry + ToolExtraData 统一数据结构，InstalledIndex → HashMap<ToolKind, _>，消除 15+ match 分支，旧格式兼容迁移，Channel rename_all(lowercase) |
 | 2026-04-26 | v4.0.0 | 基于 architecture-optimization-v2.md 全面重写：按优先级矩阵(P0-P3)重新组织，新增 T-060~T-083，引入实施路线图(5阶段) |
 | 2026-04-25 | v3.2.0 | 修复 T-052 Zig API serde 模型不匹配，重写适配实际 API 结构(+6测试) |
