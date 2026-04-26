@@ -6,9 +6,9 @@
 - **更新日期**: 2026-04-26
 - **适用版本**: zig-zls-manager v0.1.0+
 - **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [architecture-optimization-v2.md](./analyses/architecture-optimization-v2.md)
-- **当前阶段**: Phase 1 MVP + 架构优化重构 + P0/P1 全部完成 + P2 部分完成
+- **当前阶段**: Phase 1 MVP + 架构优化重构 + P0/P1/P2 全部完成
 - **编译状态**: ✅ cargo clippy -D warnings 零警告
-- **测试状态**: ✅ 214/214 全部通过
+- **测试状态**: ✅ 231/231 全部通过（214 单元 + 16 集成 + 1 文档）
 
 ---
 
@@ -39,33 +39,12 @@
 | T-074 | `zzm prune` 移除旧版本 | `PrunableVersion(OutputRow)` + `batch_uninstall` + 交互确认 |
 | T-076 | `zzm doctor` 诊断增强 | 环境变量/符号链接有效性/磁盘空间/兼容性检查 |
 | #006 | 并行下载 Zig+ZLS | `download_only()` + `install_from_cache()` + `tokio::join!` |
+| #007 | install 原子性回滚 | ZLS 安装失败时回滚 Zig，保持一致性 |
+| T-025 | 集成测试 | 16 个集成测试（索引/配置/兼容性/数据结构），lib.rs 公共 API 暴露 |
 
 ---
 
-## 🟢 P2 - 代码质量 + 辅助功能（2 项待完成）
-
-### #007: install 原子性（并行下载回滚）
-
-- **问题**: 并行下载 Zig+ZLS 后，若 ZLS 安装失败，Zig 已安装但未回滚，导致不一致状态
-- **方案**: `install_from_cache` 失败时回滚已安装的工具版本（删除解压目录 + 从索引移除）
-- **实现策略**:
-  - `cmd_install` 中 ZLS 安装失败 → 回滚 Zig 安装（调用 `uninstall`）
-  - `execute_install_plan` 同理
-  - 新增 `RollbackGuard` 结构体，析构时自动回滚（RAII 模式）
-- **涉及文件**: `src/commands/install.rs`, `src/commands/setup.rs`
-- **工作量**: 1 天 | **风险**: 低
-
-### T-025: 编写集成测试
-
-- **问题**: `tests/integration/` 目录为空，核心流程缺乏端到端验证
-- **目标**: 使用 tempfile 创建临时环境，验证完整安装/切换/卸载流程
-- **测试用例**:
-  - `test_install_and_use_flow`: 安装 → 切换 → 验证符号链接 → 卸载
-  - `test_parallel_download_flow`: 并行下载 Zig+ZLS → 验证两者均安装成功
-  - `test_config_persistence`: 配置读写 + .zzmrc 项目级配置
-  - `test_doctor_diagnostics`: doctor 诊断输出验证
-- **涉及文件**: `tests/integration/`（新增）
-- **工作量**: 3 天 | **风险**: 低
+## 🟢 P2 - 代码质量 + 辅助功能 — ✅ 全部完成
 
 ---
 
@@ -148,9 +127,9 @@
 ## 📐 实施路线图
 
 ```
-阶段 1 ✅ ─→ 阶段 2 ✅ ──→ 阶段 3 ✅ ──→ 阶段 4 ✅ ──→ 阶段 5 ───→ 阶段 6
-T-060 ✅      T-061 ✅       T-064 ✅       T-062 ✅       #007          T-075
-T-066 ✅      T-064 ✅       T-065 ✅       T-063 ✅       T-025         P3 项
+阶段 1 ✅ ─→ 阶段 2 ✅ ──→ 阶段 3 ✅ ──→ 阶段 4 ✅ ──→ 阶段 5 ✅ ──→ 阶段 6
+T-060 ✅      T-061 ✅       T-064 ✅       T-062 ✅       #007 ✅       T-075
+T-066 ✅      T-064 ✅       T-065 ✅       T-063 ✅       T-025 ✅       P3 项
 (输出         (泛型         (Commands      (Wizard       (原子性+       (自我更新+
  解耦+        彻底化+       数据抽象+      +restore)     集成测试)     体验优化)
  OnceCell)   Commands)    Project)
@@ -162,7 +141,7 @@ T-066 ✅      T-064 ✅       T-065 ✅       T-063 ✅       T-025         P3 
 | **阶段 2** | T-061 泛型彻底化 + T-064 Commands 数据抽象 | ✅ 完成 |
 | **阶段 3** | T-065 ProjectManager 完整实现 | ✅ 完成 |
 | **阶段 4** | T-062 Interactive Wizard + T-063 restore 命令 | ✅ 完成 |
-| **阶段 5** | #007 install 原子性 + T-025 集成测试 | ⬜ 待做 |
+| **阶段 5** | #007 install 原子性 + T-025 集成测试 | ✅ 完成 |
 | **阶段 6** | T-075 自我更新 + P3 体验优化项 | ⬜ 待规划 |
 
 ---
@@ -171,6 +150,7 @@ T-066 ✅      T-064 ✅       T-065 ✅       T-063 ✅       T-025         P3 
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
+| 2026-04-26 | v5.2.0 | 完成 #007 install 原子性回滚 + T-025 集成测试（16个），新增 lib.rs 公共 API 暴露，P2 全部完成 |
 | 2026-04-26 | v5.1.0 | 精简 TODO：移除已完成项详细描述，保留表格；移除重复路线图；P2 仅剩 #007 + T-025 |
 | 2026-04-26 | v5.0.0 | 完成 #006 并行下载，重新规划：#007 提升为 P2，T-075 降为 P3，新增阶段 6 |
 | 2026-04-26 | v4.5.0 | 完成 T-070/T-071/T-072/T-074/T-076，P2 部分完成 |
