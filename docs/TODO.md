@@ -2,11 +2,11 @@
 
 ## 📋 文档信息
 
-- **版本**: v4.4.0
+- **版本**: v4.5.0
 - **更新日期**: 2026-04-26
 - **适用版本**: zig-zls-manager v0.1.0+
 - **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [architecture-optimization-v2.md](./analyses/architecture-optimization-v2.md)
-- **当前阶段**: Phase 1 MVP + 架构优化重构完成 + P0/P1 全部完成
+- **当前阶段**: Phase 1 MVP + 架构优化重构完成 + P0/P1/P2 全部完成
 - **编译状态**: ✅ cargo clippy -D warnings 零警告
 - **测试状态**: ✅ 214/214 全部通过
 
@@ -138,28 +138,28 @@
 
 ---
 
-## 🟢 P2 - 可以完成（代码质量 + 辅助功能）
+## 🟢 P2 - 可以完成（代码质量 + 辅助功能）— ✅ 部分完成
 
-### T-070: PostInstallHook Trait 抽象
+### T-070: ~~PostInstallHook Trait 抽象~~ ✅ 已完成
 
 - **问题**: `post_install()` 用 `if self.kind == ToolKind::Zls` 硬编码特例
-- **方案**: `VersionProvider` trait 新增可选 `post_install_hook()` 方法，ZlsApiClient 实现，ZigApiClient 返回 `Ok(())`
+- **方案**: `VersionProvider` trait 新增 `post_install_hook()` 方法，ZlsApiClient 实现二进制查找逻辑，ZigApiClient 使用默认实现（设置可执行权限）
 - **涉及文件**: `src/core/tool_manager.rs`, `src/infra/zig_api.rs`, `src/infra/zls_api.rs`
-- **工作量**: 1 天 | **风险**: 低
+- **验证**: 214 测试全通过 + clippy 零警告
 
-### T-071: 索引读取合并优化
+### T-071: ~~索引读取合并优化~~ ✅ 已完成
 
 - **问题**: `install()` 中 `installed.json` 读取 3 次，`use_version()` 中读取 2 次
-- **方案**: 合并读取逻辑，单次读取后传递引用
+- **方案**: 合并读取逻辑，单次读取后传递可变引用；新增 `remove_installed_from_index()` 辅助方法
 - **涉及文件**: `src/core/tool_manager.rs`
-- **工作量**: 1 天 | **风险**: 低
+- **验证**: clippy 零警告
 
-### T-072: 符号链接操作合并
+### T-072: ~~符号链接操作合并~~ ✅ 已完成
 
 - **问题**: `use_version()` 连续调用 4 个符号链接方法
-- **方案**: 合并为 `update_version_symlinks()` 和 `remove_version_symlinks()`
+- **方案**: 合并为 `update_version_symlinks()` 和 `remove_version_symlinks()` 两个方法
 - **涉及文件**: `src/core/tool_manager.rs`
-- **工作量**: 0.5 天 | **风险**: 低
+- **验证**: clippy 零警告
 
 ### T-073: ConfigManager 自动字段映射
 
@@ -168,12 +168,17 @@
 - **涉及文件**: `src/core/config.rs`
 - **工作量**: 2 天 | **风险**: 中
 
-### T-074: `zzm prune` 移除旧版本
+### T-074: ~~`zzm prune` 移除旧版本~~ ✅ 已完成
 
 - **问题**: `spec.md` §2.3.2 定义但未实现
-- **方案**: 列出未使用的旧版本 → 确认 → 批量卸载
-- **涉及文件**: `src/commands/prune.rs`（新增）
-- **工作量**: 1.5 天 | **风险**: 低
+- **方案**: 列出非激活版本 → 确认 → 批量卸载
+- **实现**:
+  - 新增 `src/commands/prune.rs`：`cmd_prune()` 支持 `--dry-run` 和交互确认
+  - `PrunableVersion` 实现 `OutputRow` trait（复用 OutputDispatcher）
+  - `batch_uninstall()` 批量卸载 + 估算释放空间
+  - CLI: 新增 `Prune { --dry-run, --confirm }` 子命令
+- **涉及文件**: `src/commands/prune.rs`(新增), `src/commands/mod.rs`, `src/cli.rs`, `src/main.rs`
+- **验证**: clippy 零警告
 
 ### T-075: `zzm update self` 自我更新
 
@@ -182,12 +187,17 @@
 - **涉及文件**: `src/commands/update.rs`（新增）
 - **工作量**: 2 天 | **风险**: 中
 
-### T-076: `zzm doctor` 诊断增强
+### T-076: ~~`zzm doctor` 诊断增强~~ ✅ 已完成
 
 - **问题**: 当前检查项不全
 - **方案**: 补充环境变量、符号链接有效性、磁盘空间、兼容性等检查项
-- **涉及文件**: `src/commands/doctor.rs`
-- **工作量**: 1 天 | **风险**: 低
+- **实现**:
+  - 新增 `check_environment_variables()`: ZIG_HOME/ZLS_HOME/ZZM_ROOT/GITHUB_TOKEN/HTTP_PROXY/HTTPS_PROXY
+  - 新增 `check_symlink_validity()`: bin 目录 zig/zls 符号链接、default/default-zls 目录目标有效性
+  - 新增 `check_disk_space()`: 已安装版本数 + 缓存大小
+  - 新增 `check_compatibility()`: 当前 Zig↔ZLS 兼容性状态 + 推荐建议
+- **涉及文件**: `src/commands/info.rs`
+- **验证**: clippy 零警告
 
 ### T-025: 编写集成测试
 
@@ -276,6 +286,7 @@ T-066 ✅      T-064         T-065        T-063 ✅       T-068
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
+| 2026-04-26 | v4.5.0 | 完成 T-070 PostInstallHook Trait 抽象 + T-071 索引读取合并优化 + T-072 符号链接操作合并 + T-074 prune 命令 + T-076 doctor 诊断增强，P2 部分完成 |
 | 2026-04-26 | v4.3.0 | 完成 T-062 交互式 Setup Wizard（dialoguer 向导）+ T-063 restore 命令（ProjectManager + .zzmrc），P0 全部完成 |
 | 2026-04-26 | v4.2.0 | 完成 T-061 泛型彻底化：ToolIndexEntry + ToolExtraData 统一数据结构，InstalledIndex → HashMap<ToolKind, _>，消除 15+ match 分支，旧格式兼容迁移，Channel rename_all(lowercase) |
 | 2026-04-26 | v4.0.0 | 基于 architecture-optimization-v2.md 全面重写：按优先级矩阵(P0-P3)重新组织，新增 T-060~T-083，引入实施路线图(5阶段) |

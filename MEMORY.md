@@ -11,14 +11,14 @@
   - 自动化 IDE (VS Code, Neovim) 配置生成。
 
 ## 当前状态 (2026-04-26)
-- **阶段**: Phase 1 MVP 完成 + 架构优化重构完成 + P0 全部完成 + P1 全部完成
+- **阶段**: Phase 1 MVP 完成 + 架构优化重构完成 + P0/P1 全部完成 + P2 部分完成
 - **编译**: ✅ cargo clippy -D warnings 零警告通过
 - **测试**: ✅ 214/214 全部通过
 - **架构变更**: ZigManager/ZlsManager → ToolManager<T: VersionProvider> 泛型抽象
-- **新增模块**: core::channel, core::tool_manager, core::callbacks, infra::api_cache, output::dispatcher, commands::pair
+- **新增模块**: core::channel, core::tool_manager, core::callbacks, infra::api_cache, output::dispatcher, commands::pair, commands::prune
 - **删除模块**: core::zig_manager, core::zls_manager
-- **最近新增**: OutputRow trait + OutputDispatcher 统一调度 + ProjectManager 完整实现 + sync 增强(LikelyCompatible/dry_run) + pair 命令 + 交互式 Setup Wizard + ToolIndexEntry 统一数据结构
-- **待办**: P2 级优化 (T-070 PostInstallHook/T-071 索引合并/T-074 prune 命令等)
+- **最近新增**: PostInstallHook trait 抽象 + 索引读取合并 + 符号链接合并 + prune 命令 + doctor 诊断增强
+- **待办**: P2 剩余 (T-073 ConfigManager/T-075 自我更新/T-025 集成测试) → P3
 
 ## 架构优化要点
 - 统一 Channel 枚举（替代 ZigChannel/ZlsChannel）
