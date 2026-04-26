@@ -2,7 +2,7 @@
 
 ## 📋 文档信息
 
-- **版本**: v1.2.0
+- **版本**: v1.3.0
 - **创建日期**: 2026-04-23
 - **最后更新**: 2026-04-26
 - **适用版本**: zig-zls-manager v0.1.0+
@@ -298,143 +298,99 @@ pub fn print_error(msg: &str) {
 
 ### 2.2 业务逻辑层模块
 
-#### 2.2.1 Zig 版本管理器 (`zig_manager`)
+#### 2.2.1 工具版本管理器 (`tool_manager`)
 
-**职责**：管理 Zig 编译器的完整生命周期
+**职责**：统一管理 Zig 和 ZLS 的完整生命周期
+
+**设计模式**：泛型抽象 + 策略模式，通过 `VersionProvider` trait 封装 API 差异
 
 **核心数据结构**：
 
 ```rust
-use serde::{Deserialize, Serialize};
-
-/// Zig 版本信息
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ZigVersion {
-    pub version: String,           // "0.13.0"
-    pub channel: Channel,         // Stable | Nightly | Maintenance
-    pub release_date: Option<String>,
-    pub download_url: String,
-    pub checksum_sha256: String,
-    pub size: u64,
+/// 工具类型标识
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ToolKind {
+    Zig,
+    Zls,
 }
 
-/// 版本通道
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum Channel {
-    Stable,
-    Nightly,  // master
-    Maintenance,
+/// 版本提供者 trait（封装 Zig API / ZLS API 的差异）
+pub trait VersionProvider: Send + Sync {
+    fn get_version_info(&self, version: &str)
+        -> impl Future<Output = Result<VersionInfo, ZzmError>> + Send;
+    fn list_remote_versions(&self)
+        -> impl Future<Output = Result<Vec<VersionInfo>, ZzmError>> + Send;
 }
 
-/// 已安装的 Zig 实例
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ZigInstallation {
-    pub version: ZigVersion,
+/// 工具版本管理器（泛型抽象）
+pub struct ToolManager<T: VersionProvider> {
+    kind: ToolKind,
+    platform: Box<dyn PlatformTrait>,
+    path_manager: PathManager,
+    api_client: T,
+    downloader: Downloader,
+    callbacks: InstallCallbacks,
+}
+```
+
+**已安装版本索引**（`installed.json`）：
+
+```rust
+/// 工具特定的额外数据
+pub enum ToolExtraData {
+    Zig { channel: Channel },
+    Zls { zig_version: Option<String> },
+}
+
+/// 统一的已安装版本条目
+pub struct ToolIndexEntry {
+    pub version: String,
     pub install_path: PathBuf,
-    pub installed_at: DateTime<Utc>,
-    pub is_default: bool,
-    pub is_active: bool,
+    pub installed_at: String,
+    pub extra: ToolExtraData,
+}
+
+/// 已安装版本索引
+pub struct InstalledIndex {
+    pub tools: HashMap<ToolKind, Vec<ToolIndexEntry>>,
+    pub active: HashMap<ToolKind, String>,
 }
 ```
 
 **核心方法**：
 
 ```rust
-impl ZigManager {
+impl<T: VersionProvider> ToolManager<T> {
     /// 安装指定版本
-    pub async fn install(&self, version: &str, options: InstallOptions) -> Result<()>;
+    pub async fn install(&self, version: &str, force: bool, zig_version: Option<&str>)
+        -> Result<ToolIndexEntry>;
 
     /// 卸载版本
-    pub async fn uninstall(&self, version: &str, purge: bool) -> Result<()>;
+    pub fn uninstall(&self, version: &str) -> Result<()>;
 
     /// 列出已安装的版本
-    pub fn list_installed(&self) -> Result<Vec<ZigInstallation>>;
+    pub fn list_installed(&self) -> Result<Vec<ToolIndexEntry>>;
 
     /// 列出远程可用版本
-    pub async fn list_remote(&self) -> Result<Vec<ZigVersion>>;
+    pub async fn list_remote(&self) -> Result<Vec<VersionInfo>>;
 
     /// 切换活动版本
-    pub async fn use_version(&self, version: &str, scope: Scope) -> Result<()>;
+    pub async fn use_version(&self, version: &str) -> Result<String>;
 
     /// 获取当前活动版本
-    pub fn current(&self) -> Result<Option<ZigInstallation>>;
-
-    /// 设置默认版本
-    pub fn set_default(&self, version: &str) -> Result<()>;
-
-    /// 解析版本字符串（支持简写）
-    pub fn resolve_version(&self, input: &str) -> Result<String>;
+    pub fn current(&self) -> Result<Option<ToolIndexEntry>>;
 }
 ```
 
-#### 2.2.2 ZLS 版本管理器 (`zls_manager`)
+**泛型实例化**：
 
-**职责**：独立管理 ZLS 的生命周期，支持与 Zig 的关联
+| 实例 | 泛型参数 | ToolKind | 用途 |
+|------|---------|----------|------|
+| `ToolManager<ZigApiClient>` | `ZigApiClient` | `ToolKind::Zig` | Zig 版本管理 |
+| `ToolManager<ZlsApiClient>` | `ZlsApiClient` | `ToolKind::Zls` | ZLS 版本管理 |
 
-**核心数据结构**：
-
-```rust
-/// ZLS 版本信息
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ZlsVersion {
-    pub version: String,           // "0.13.0"
-    pub compatible_zig: String,    // 匹配的 Zig 版本
-    pub download_url: Option<String>,  // 预编译二进制 URL
-    pub source_repo: String,       // GitHub 仓库地址
-    pub build_requirements: BuildRequirements,
-}
-
-/// 构建需求
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BuildRequirements {
-    pub min_zig_version: String,
-    pub build_command: String,
-    pub output_path: String,
-}
-
-/// 已安装的 ZLS 实例
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ZlsInstallation {
-    pub version: ZlsVersion,
-    pub install_path: PathBuf,
-    pub zig_version: String,       // 用于构建此 ZLS 的 Zig 版本
-    pub install_mode: ZlsInstallMode,  // Prebuilt | Source
-    pub installed_at: DateTime<Utc>,
-    pub is_active: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ZlsInstallMode {
-    Prebuilt,
-    Source { zig_version_used: String },
-}
-```
-
-**核心方法**：
-
-```rust
-impl ZlsManager {
-    /// 安装 ZLS
-    pub async fn install(&self, version: &str, options: ZlsInstallOptions) -> Result<()>;
-
-    /// 从源码编译安装 ZLS
-    pub async fn install_from_source(&self, zig_version: &str, options: SourceBuildOptions) -> Result<()>;
-
-    /// 卸载 ZLS
-    pub async fn uninstall(&self, version: &str) -> Result<()>;
-
-    /// 切换活动版本
-    pub async fn use_version(&self, version: &str, scope: Scope) -> Result<()>;
-
-    /// 根据 Zig 版本获取推荐的 ZLS 版本
-    pub fn get_recommended_for_zig(&self, zig_version: &str) -> Result<Option<String>>;
-
-    /// 检查与指定 Zig 版本的兼容性
-    pub fn check_compatibility(&self, zls_ver: &str, zig_ver: &str) -> CompatibilityStatus;
-}
-```
-
-#### 2.2.3 兼容性检查器 (`compatibility`)
+**设计优势**：新增工具类型只需实现 `VersionProvider` trait + 添加 `ToolExtraData` 变体，无需重复安装/卸载/切换逻辑
+#### 2.2.2 兼容性检查器 (`compatibility`)
 
 **职责**：维护和管理 Zig ↔ ZLS 版本兼容性矩阵
 
@@ -491,7 +447,7 @@ lazy_static! {
 }
 ```
 
-#### 2.2.4 配置管理器 (`config`)
+#### 2.2.3 配置管理器 (`config`)
 
 **职责**：管理系统和项目级别的配置文件
 
@@ -1568,7 +1524,7 @@ cargo install zzm --locked
 - Downloader 指数退避重试 + 临时文件写入策略已实现
 - SHA256 校验、缓存TTL 1小时、GitHub Token 认证均按设计实现
 - Clippy 零警告通过（22个 dead code 已标注 `#[allow(dead_code)]`）
-- 单元测试 190/190 全部通过
+- 单元测试 194/194 全部通过
 
 ### D.2 与设计文档的偏差
 
