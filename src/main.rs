@@ -59,9 +59,9 @@ async fn run(cli: Cli) -> Result<(), utils::error::ZzmError> {
             from_source: _,
             yes: _,
             force,
-        } => commands::install::cmd_install(&ctx, &version, with_zls, force).await,
+        } => commands::install::cmd_install(&ctx, &version, with_zls, force, cli.json).await,
         cli::Commands::Uninstall { version, purge: _ } => {
-            commands::install::cmd_uninstall(&ctx, &version).await
+            commands::install::cmd_uninstall(&ctx, &version, cli.json).await
         }
         cli::Commands::List {
             installed,
@@ -74,7 +74,7 @@ async fn run(cli: Cli) -> Result<(), utils::error::ZzmError> {
             project: _,
             default: _,
             zls,
-        } => commands::version_use::cmd_use(&ctx, &version, zls).await,
+        } => commands::version_use::cmd_use(&ctx, &version, zls, cli.json).await,
         cli::Commands::Current { json } => {
             commands::list::cmd_current(&ctx, json || cli.json).await
         }
@@ -84,8 +84,8 @@ async fn run(cli: Cli) -> Result<(), utils::error::ZzmError> {
             with_zls,
             ide: _,
             wizard,
-        } => commands::setup::cmd_setup(&ctx, version, with_zls, wizard).await,
-        cli::Commands::Sync { dry_run } => commands::setup::cmd_sync(&ctx, dry_run).await,
+        } => commands::setup::cmd_setup(&ctx, version, with_zls, wizard, cli.json).await,
+        cli::Commands::Sync { dry_run } => commands::setup::cmd_sync(&ctx, dry_run, cli.json).await,
         cli::Commands::Info { verbose } => commands::info::cmd_info(&ctx, verbose).await,
         cli::Commands::Config { command } => commands::config::cmd_config(&ctx, command).await,
         cli::Commands::Ide { command } => commands::ide::cmd_ide(&ctx, command).await,
