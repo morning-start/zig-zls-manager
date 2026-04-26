@@ -522,7 +522,7 @@ mod tests {
     fn test_zls_channel_serde() {
         let stable = Channel::Stable;
         let json = serde_json::to_string(&stable).unwrap();
-        assert!(json.contains("Stable"));
+        assert!(json.contains("stable"));
     }
 
     #[test]

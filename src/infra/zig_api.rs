@@ -527,11 +527,11 @@ mod tests {
     fn test_zig_channel_serde() {
         let stable = Channel::Stable;
         let json = serde_json::to_string(&stable).unwrap();
-        assert!(json.contains("Stable"));
+        assert!(json.contains("stable"));
 
         let nightly = Channel::Nightly;
         let json = serde_json::to_string(&nightly).unwrap();
-        assert!(json.contains("Nightly"));
+        assert!(json.contains("nightly"));
     }
 
     #[test]
