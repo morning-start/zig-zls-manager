@@ -1,9 +1,9 @@
 use crate::output::console_output;
 
 /// 步骤进度回调类型
-pub type StepFn = dyn Fn(usize, usize, &str);
+pub type StepFn = dyn Fn(usize, usize, &str) + Send + Sync + 'static;
 /// 消息回调类型
-pub type MessageFn = dyn Fn(&str);
+pub type MessageFn = dyn Fn(&str) + Send + Sync + 'static;
 
 /// 安装流程回调集合
 ///

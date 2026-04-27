@@ -79,6 +79,7 @@ url = "2"
 
 # 异步工具
 futures-util = "0.3"
+async-trait = "0.1"
 
 [dev-dependencies]
 # 测试工具

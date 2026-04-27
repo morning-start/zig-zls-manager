@@ -1,3 +1,5 @@
+#![cfg(target_os = "linux")]
+
 use std::path::{Path, PathBuf};
 
 use super::trait_def::PlatformTrait;
@@ -6,7 +8,6 @@ use crate::utils::error::ZzmError;
 /// Linux 平台适配器
 pub struct LinuxPlatform;
 
-#[cfg(target_os = "linux")]
 impl PlatformTrait for LinuxPlatform {
     fn clone_box(&self) -> Box<dyn PlatformTrait> {
         Box::new(LinuxPlatform)
@@ -66,39 +67,5 @@ impl PlatformTrait for LinuxPlatform {
 
     fn is_admin(&self) -> bool {
         std::env::var("USER").map(|u| u == "root").unwrap_or(false)
-    }
-}
-
-#[cfg(not(target_os = "linux"))]
-impl PlatformTrait for LinuxPlatform {
-    fn clone_box(&self) -> Box<dyn PlatformTrait> {
-        Box::new(LinuxPlatform)
-    }
-
-    fn name(&self) -> &'static str {
-        "linux"
-    }
-    fn platform_default_dir(&self) -> PathBuf {
-        PathBuf::from("/.zzm")
-    }
-    fn create_symlink(&self, _original: &Path, _link: &Path) -> Result<(), ZzmError> {
-        Err(ZzmError::UnsupportedPlatform {
-            platform: "linux".to_string(),
-        })
-    }
-    fn remove_symlink(&self, _link: &Path) -> Result<(), ZzmError> {
-        Ok(())
-    }
-    fn shell_config_files(&self) -> Vec<PathBuf> {
-        vec![]
-    }
-    fn zig_binary_name(&self) -> &'static str {
-        "zig"
-    }
-    fn zls_binary_name(&self) -> &'static str {
-        "zls"
-    }
-    fn is_admin(&self) -> bool {
-        false
     }
 }

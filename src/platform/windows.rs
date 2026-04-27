@@ -1,3 +1,5 @@
+#![cfg(target_os = "windows")]
+
 use std::path::{Path, PathBuf};
 
 use super::trait_def::PlatformTrait;
