@@ -213,6 +213,27 @@ pub enum Commands {
         /// Shell 类型: bash, zsh, powershell, fish
         shell: String,
     },
+
+    /// 更新 zzm 本身
+    Update {
+        #[command(subcommand)]
+        command: UpdateCommands,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+pub enum UpdateCommands {
+    /// 更新 zzm 到最新版本
+    #[command(name = "self")]
+    Self_ {
+        /// 仅检查是否有新版本，不执行更新
+        #[arg(long)]
+        check: bool,
+
+        /// 强制更新，即使已是最新版本
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 #[derive(Subcommand, Clone)]

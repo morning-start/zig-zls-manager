@@ -81,6 +81,9 @@ url = "2"
 futures-util = "0.3"
 async-trait = "0.1"
 
+# 临时文件
+tempfile = "3"
+
 [dev-dependencies]
 # 测试工具
 tempfile = "3"
