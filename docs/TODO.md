@@ -2,43 +2,11 @@
 
 ## 📋 文档信息
 
-- **版本**: v6.0.0
+- **版本**: v6.1.0
 - **更新日期**: 2026-04-28
 - **适用版本**: zig-zls-manager v0.1.0+
 - **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [analysis.md](../workflow/analysis.md)
 - **当前阶段**: 阶段 6 - 自我更新 + P3 体验优化
-
----
-
-## ✅ 已完成
-
-| 任务 | 描述 | 关键变更 |
-|------|------|---------|
-| T-044 | 统一 Channel 枚举 | 合并 `ZigChannel`/`ZlsChannel` → `core::channel::Channel` |
-| T-045 | 合并目标三元组解析 | 统一到 `platform::parse_target_triple()` |
-| T-046 | 合并 VersionParts 和 Version | 删除 `VersionParts`，改用 `Version::from_str` |
-| T-047 | ToolManager 泛型抽象 | 新增 `ToolManager<T: VersionProvider>`，净删除 ~400 行重复代码 |
-| T-048 | ApiCache 泛型缓存层 | 新增 `ApiCache<T>` 消除缓存逻辑重复 |
-| T-049 | 流式 SHA256 校验 | `BufReader` 流式校验，内存恒定 |
-| T-050 | ToolManager 单元测试 | +24 测试 (157→181) |
-| T-052 | Zig API serde 模型修复 | 重写适配实际 API (+6 测试) |
-| T-043 | 数字字面量可读性 | 添加下划线分隔符 |
-| T-061 | 泛型彻底化 — ToolIndexEntry | `InstalledIndex` → `HashMap<ToolKind, Vec<ToolIndexEntry>>` |
-| T-062 | 交互式 Setup Wizard | `cmd_setup_wizard()` 使用 dialoguer 交互式引导 |
-| T-063 | `zzm restore` 命令 | 新增 `ProjectManager` + `restore` 子命令 |
-| T-064 | Commands 层 OutputDispatcher | `OutputRow` trait + `output_list()` 统一调度 |
-| T-065 | ProjectManager 完整实现 | `save`/`set_zig_version`/`set_zls_version`/`resolve_zls_version` |
-| T-066 | AppContext OnceCell 懒加载 | `PathManager` 改为 `OnceLock` 单例复用 |
-| T-067 | `zzm sync` 功能增强 | 兼容性矩阵推荐 + dry-run + LikelyCompatible 状态处理 |
-| T-068 | `zzm pair` 命令 | 手动绑定 Zig↔ZLS 版本关系，写入 .zzmrc |
-| T-070 | PostInstallHook Trait 抽象 | `VersionProvider::post_install_hook()` 默认实现 |
-| T-071 | 索引读取合并优化 | `install()` 3→1 次，`use_version()` 2→1 次 |
-| T-072 | 符号链接操作合并 | 4 个方法合并为 `update_version_symlinks()` + `remove_version_symlinks()` |
-| T-074 | `zzm prune` 移除旧版本 | `PrunableVersion(OutputRow)` + `batch_uninstall` + 交互确认 |
-| T-076 | `zzm doctor` 诊断增强 | 环境变量/符号链接有效性/磁盘空间/兼容性检查 |
-| #006 | 并行下载 Zig+ZLS | `download_only()` + `install_from_cache()` + `tokio::join!` |
-| #007 | install 原子性回滚 | ZLS 安装失败时回滚 Zig，保持一致性 |
-| T-025 | 集成测试 | 16 个集成测试（索引/配置/兼容性/数据结构） |
 
 ---
 
@@ -120,15 +88,6 @@
 
 ## 📐 实施路线图
 
-```
-阶段 1 ✅ ─→ 阶段 2 ✅ ──→ 阶段 3 ✅ ──→ 阶段 4 ✅ ──→ 阶段 5 ✅ ──→ 阶段 6 🟡
-T-060 ✅      T-061 ✅       T-064 ✅       T-062 ✅       #007 ✅       T-075
-T-066 ✅      T-064 ✅       T-065 ✅       T-063 ✅       T-025 ✅       P3 项
-(输出         (泛型         (Commands      (Wizard       (原子性+       (自我更新+
- 解耦+        彻底化+       数据抽象+      +restore)     集成测试)     体验优化)
- OnceCell)   Commands)    Project)
-```
-
 | 阶段 | 交付内容 | 状态 |
 |------|---------|------|
 | **阶段 1** | T-060 Core 层输出解耦 + T-066 OnceCell | ✅ 完成 |
@@ -144,11 +103,5 @@ T-066 ✅      T-064 ✅       T-065 ✅       T-063 ✅       T-025 ✅       P
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
+| 2026-04-28 | v6.1.0 | 移除已完成内容，已完成项迁移至 ROADMAP.md 和 MEMORY.md |
 | 2026-04-28 | v6.0.0 | 根据 workflow 文档重新规划，阶段 6 启动 |
-| 2026-04-26 | v5.2.0 | 完成 #007 install 原子性回滚 + T-025 集成测试，P2 全部完成 |
-| 2026-04-26 | v5.1.0 | 精简 TODO：移除已完成项详细描述 |
-| 2026-04-26 | v5.0.0 | 完成 #006 并行下载，重新规划优先级 |
-| 2026-04-26 | v4.5.0 | 完成 T-070/T-071/T-072/T-074/T-076 |
-| 2026-04-26 | v4.3.0 | 完成 T-062 Setup Wizard + T-063 restore 命令 |
-| 2026-04-26 | v4.2.0 | 完成 T-061 泛型彻底化 |
-| 2026-04-26 | v4.0.0 | 基于 architecture-optimization-v2.md 全面重写 |
