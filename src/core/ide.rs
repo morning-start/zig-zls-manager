@@ -109,7 +109,7 @@ impl IdeManager {
         let config_manager = ConfigManager::new(self.platform.clone_box());
         let config = config_manager.load()?;
 
-        if let Some(ref custom_path) = config.ide.vscode_settings_path {
+        if let Some(ref custom_path) = config.ide.vscode.settings_path {
             return Ok(PathBuf::from(custom_path));
         }
 

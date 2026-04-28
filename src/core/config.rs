@@ -65,20 +65,46 @@ impl Default for ZzmConfig {
     }
 }
 
-/// IDE 集成配置
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct IdeConfig {
-    /// VS Code 设置自动更新
+/// VS Code 配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VsCodeConfig {
+    /// 设置自动更新
     #[serde(default)]
-    pub vscode_auto_update: bool,
+    pub auto_update: bool,
 
-    /// 自动添加 zig.zls.path 到 VS Code settings.json
+    /// 自动添加 zig.zls.path 到 settings.json
     #[serde(default = "default_true")]
-    pub vscode_set_zls_path: bool,
+    pub set_zls_path: bool,
 
-    /// VS Code settings.json 自定义路径
+    /// settings.json 自定义路径
     #[serde(default)]
-    pub vscode_settings_path: Option<String>,
+    pub settings_path: Option<String>,
+}
+
+impl Default for VsCodeConfig {
+    fn default() -> Self {
+        Self {
+            auto_update: false,
+            set_zls_path: true, // 这是我们想要的默认值
+            settings_path: None,
+        }
+    }
+}
+
+/// IDE 集成配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IdeConfig {
+    /// VS Code 配置
+    #[serde(default)]
+    pub vscode: VsCodeConfig,
+}
+
+impl Default for IdeConfig {
+    fn default() -> Self {
+        Self {
+            vscode: VsCodeConfig::default(),
+        }
+    }
 }
 
 /// 配置管理器
@@ -147,83 +173,165 @@ impl ConfigManager {
         Ok(())
     }
 
+    /// 辅助：从 serde_json::Value 按点分隔路径获取值
+    fn get_nested_value<'a>(
+        value: &'a serde_json::Value,
+        path: &str,
+    ) -> Option<&'a serde_json::Value> {
+        let mut current = value;
+        for key in path.split('.') {
+            match current.get(key) {
+                Some(next) => current = next,
+                None => return None,
+            }
+        }
+        Some(current)
+    }
+
+    /// 辅助：在 serde_json::Value 中设置嵌套路径的值
+    fn set_nested_value(
+        value: &mut serde_json::Value,
+        path: &str,
+        new_value: serde_json::Value,
+    ) -> Result<(), ZzmError> {
+        let parts: Vec<&str> = path.split('.').collect();
+        let mut current = value;
+
+        // 遍历除最后一个部分之外的所有部分
+        for (_i, &key) in parts.iter().enumerate().take(parts.len() - 1) {
+            // 如果当前不是对象，则转换为对象
+            if !current.is_object() {
+                *current = serde_json::Value::Object(serde_json::Map::new());
+            }
+            current = current
+                .as_object_mut()
+                .ok_or_else(|| ZzmError::ConfigError {
+                    path: path.to_string(),
+                    reason: "无法设置嵌套值".to_string(),
+                })?
+                .entry(key)
+                .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+        }
+
+        // 设置最后一个部分的值
+        let last_key = parts.last().ok_or_else(|| ZzmError::ConfigError {
+            path: path.to_string(),
+            reason: "无效的配置项路径".to_string(),
+        })?;
+
+        if !current.is_object() {
+            *current = serde_json::Value::Object(serde_json::Map::new());
+        }
+        current
+            .as_object_mut()
+            .ok_or_else(|| ZzmError::ConfigError {
+                path: path.to_string(),
+                reason: "无法设置值".to_string(),
+            })?
+            .insert(last_key.to_string(), new_value);
+
+        Ok(())
+    }
+
+    /// 辅助：递归收集所有配置路径和值
+    fn collect_config_entries(
+        prefix: &str,
+        value: &serde_json::Value,
+        entries: &mut Vec<(String, String)>,
+    ) {
+        match value {
+            serde_json::Value::Object(map) => {
+                for (key, sub_value) in map {
+                    let new_prefix = if prefix.is_empty() {
+                        key.clone()
+                    } else {
+                        format!("{}.{}", prefix, key)
+                    };
+                    Self::collect_config_entries(&new_prefix, sub_value, entries);
+                }
+            }
+            serde_json::Value::String(s) => entries.push((prefix.to_string(), s.clone())),
+            serde_json::Value::Bool(b) => entries.push((prefix.to_string(), b.to_string())),
+            serde_json::Value::Number(n) => {
+                entries.push((prefix.to_string(), n.to_string()));
+            }
+            _ => {} // 忽略不支持的类型
+        }
+    }
+
     /// 获取单个配置项的值
     ///
-    /// 支持点分隔的路径，如 "`ide.vscode_auto_update`"
+    /// 支持点分隔的路径，如 "`ide.vscode.auto_update`"
     pub fn get(&self, key: &str) -> Result<Option<String>, ZzmError> {
         let config = self.load()?;
-        let value = match key {
-            "default_channel" => config.default_channel,
-            "auto_install_zls" => Some(config.auto_install_zls.to_string()),
-            "auto_use" => Some(config.auto_use.to_string()),
-            "mirror_url" => config.mirror_url,
-            "install_dir" => config.install_dir,
-            "parallel_downloads" => Some(config.parallel_downloads.to_string()),
-            "verify_ssl" => Some(config.verify_ssl.to_string()),
-            "ide.vscode_auto_update" => Some(config.ide.vscode_auto_update.to_string()),
-            "ide.vscode_set_zls_path" => Some(config.ide.vscode_set_zls_path.to_string()),
-            "ide.vscode_settings_path" => config.ide.vscode_settings_path,
-            _ => return Ok(None),
-        };
-        Ok(value)
+        // 先序列化为 JSON Value
+        let mut config_json = serde_json::to_value(config).map_err(|e| ZzmError::ConfigError {
+            path: key.to_string(),
+            reason: format!("序列化配置失败: {e}"),
+        })?;
+
+        // 合并默认值（因为 serde_json::to_value 可能不包含 serde 的默认值）
+        let default_config_json =
+            serde_json::to_value(ZzmConfig::default()).map_err(|e| ZzmError::ConfigError {
+                path: key.to_string(),
+                reason: format!("序列化默认配置失败: {e}"),
+            })?;
+        Self::merge_json_values(&mut config_json, &default_config_json);
+
+        // 获取嵌套值
+        if let Some(value) = Self::get_nested_value(&config_json, key) {
+            match value {
+                serde_json::Value::String(s) => Ok(Some(s.clone())),
+                serde_json::Value::Bool(b) => Ok(Some(b.to_string())),
+                serde_json::Value::Number(n) => Ok(Some(n.to_string())),
+                _ => Ok(None),
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// 辅助：递归合并两个 JSON 值，第二个值作为默认值
+    fn merge_json_values(base: &mut serde_json::Value, defaults: &serde_json::Value) {
+        if let (Some(base_obj), Some(default_obj)) =
+            (base.as_object_mut(), defaults.as_object())
+        {
+            for (key, default_value) in default_obj {
+                if !base_obj.contains_key(key) {
+                    base_obj.insert(key.clone(), default_value.clone());
+                } else if let Some(base_value) = base_obj.get_mut(key) {
+                    Self::merge_json_values(base_value, default_value);
+                }
+            }
+        }
     }
 
     /// 设置单个配置项的值
     ///
-    /// 支持点分隔的路径，如 "`ide.vscode_auto_update`"
+    /// 支持点分隔的路径，如 "`ide.vscode.auto_update`"
     pub fn set(&self, key: &str, value: &str) -> Result<(), ZzmError> {
         let mut config = self.load()?;
+        let mut config_json = serde_json::to_value(&config).map_err(|e| ZzmError::ConfigError {
+            path: key.to_string(),
+            reason: format!("序列化配置失败: {e}"),
+        })?;
 
-        match key {
-            "default_channel" => config.default_channel = Some(value.to_string()),
-            "auto_install_zls" => {
-                config.auto_install_zls = value.parse().map_err(|_| ZzmError::ConfigError {
-                    path: key.to_string(),
-                    reason: format!("期望布尔值，得到 '{value}'"),
-                })?;
-            }
-            "auto_use" => {
-                config.auto_use = value.parse().map_err(|_| ZzmError::ConfigError {
-                    path: key.to_string(),
-                    reason: format!("期望布尔值，得到 '{value}'"),
-                })?;
-            }
-            "mirror_url" => config.mirror_url = Some(value.to_string()),
-            "install_dir" => config.install_dir = Some(value.to_string()),
-            "parallel_downloads" => {
-                config.parallel_downloads = value.parse().map_err(|_| ZzmError::ConfigError {
-                    path: key.to_string(),
-                    reason: format!("期望正整数，得到 '{value}'"),
-                })?;
-            }
-            "verify_ssl" => {
-                config.verify_ssl = value.parse().map_err(|_| ZzmError::ConfigError {
-                    path: key.to_string(),
-                    reason: format!("期望布尔值，得到 '{value}'"),
-                })?;
-            }
-            "ide.vscode_auto_update" => {
-                config.ide.vscode_auto_update =
-                    value.parse().map_err(|_| ZzmError::ConfigError {
-                        path: key.to_string(),
-                        reason: format!("期望布尔值，得到 '{value}'"),
-                    })?;
-            }
-            "ide.vscode_set_zls_path" => {
-                config.ide.vscode_set_zls_path =
-                    value.parse().map_err(|_| ZzmError::ConfigError {
-                        path: key.to_string(),
-                        reason: format!("期望布尔值，得到 '{value}'"),
-                    })?;
-            }
-            "ide.vscode_settings_path" => config.ide.vscode_settings_path = Some(value.to_string()),
-            _ => {
-                return Err(ZzmError::ConfigError {
-                    path: key.to_string(),
-                    reason: format!("未知的配置项: {key}"),
-                });
-            }
-        }
+        // 尝试解析值的类型（按优先级：bool -> u32 -> String）
+        let parsed_value = if let Ok(b) = value.parse::<bool>() {
+            serde_json::Value::Bool(b)
+        } else if let Ok(n) = value.parse::<u32>() {
+            serde_json::Value::Number(n.into())
+        } else {
+            serde_json::Value::String(value.to_string())
+        };
+
+        Self::set_nested_value(&mut config_json, key, parsed_value)?;
+
+        // 反序列化回 ZzmConfig
+        config = serde_json::from_value(config_json).map_err(|e| ZzmError::ConfigError {
+            path: key.to_string(),
+            reason: format!("无法解析配置: {e}"),
+        })?;
 
         self.save(&config)
     }
@@ -231,40 +339,22 @@ impl ConfigManager {
     /// 列出所有配置项
     pub fn list_all(&self) -> Result<Vec<(String, String)>, ZzmError> {
         let config = self.load()?;
-        let mut items = Vec::new();
+        let mut config_json = serde_json::to_value(config).map_err(|e| ZzmError::ConfigError {
+            path: "".to_string(),
+            reason: format!("序列化配置失败: {e}"),
+        })?;
 
-        if let Some(ref v) = config.default_channel {
-            items.push(("default_channel".to_string(), v.clone()));
-        }
-        items.push((
-            "auto_install_zls".to_string(),
-            config.auto_install_zls.to_string(),
-        ));
-        items.push(("auto_use".to_string(), config.auto_use.to_string()));
-        if let Some(ref v) = config.mirror_url {
-            items.push(("mirror_url".to_string(), v.clone()));
-        }
-        if let Some(ref v) = config.install_dir {
-            items.push(("install_dir".to_string(), v.clone()));
-        }
-        items.push((
-            "parallel_downloads".to_string(),
-            config.parallel_downloads.to_string(),
-        ));
-        items.push(("verify_ssl".to_string(), config.verify_ssl.to_string()));
-        items.push((
-            "ide.vscode_auto_update".to_string(),
-            config.ide.vscode_auto_update.to_string(),
-        ));
-        items.push((
-            "ide.vscode_set_zls_path".to_string(),
-            config.ide.vscode_set_zls_path.to_string(),
-        ));
-        if let Some(ref v) = config.ide.vscode_settings_path {
-            items.push(("ide.vscode_settings_path".to_string(), v.clone()));
-        }
+        let default_config_json =
+            serde_json::to_value(ZzmConfig::default()).map_err(|e| ZzmError::ConfigError {
+                path: "".to_string(),
+                reason: format!("序列化默认配置失败: {e}"),
+            })?;
+        Self::merge_json_values(&mut config_json, &default_config_json);
 
-        Ok(items)
+        let mut entries = Vec::new();
+        Self::collect_config_entries("", &config_json, &mut entries);
+
+        Ok(entries)
     }
 
     /// 重置配置为默认值
@@ -313,11 +403,10 @@ mod tests {
     #[test]
     fn test_ide_config_default() {
         let ide = IdeConfig::default();
-        assert!(!ide.vscode_auto_update);
-        // Note: vscode_set_zls_path uses default_true() for serde deserialization,
-        // but Default derive sets it to false. This is a known design trade-off.
-        assert!(!ide.vscode_set_zls_path);
-        assert!(ide.vscode_settings_path.is_none());
+        assert!(!ide.vscode.auto_update);
+        // 现在 Default 实现正确设置了 set_zls_path 为 true
+        assert!(ide.vscode.set_zls_path);
+        assert!(ide.vscode.settings_path.is_none());
     }
 
     #[test]
@@ -325,9 +414,9 @@ mod tests {
         // When deserializing from TOML, default_true() should apply
         let toml_str = "";
         let ide: IdeConfig = toml::from_str(toml_str).unwrap();
-        assert!(!ide.vscode_auto_update);
-        assert!(ide.vscode_set_zls_path); // default_true() takes effect on deserialization
-        assert!(ide.vscode_settings_path.is_none());
+        assert!(!ide.vscode.auto_update);
+        assert!(ide.vscode.set_zls_path); // default_true() takes effect on deserialization
+        assert!(ide.vscode.settings_path.is_none());
     }
 
     #[test]
@@ -373,16 +462,18 @@ mod tests {
     #[test]
     fn test_ide_config_serialization() {
         let ide = IdeConfig {
-            vscode_auto_update: true,
-            vscode_settings_path: Some("/custom/path/settings.json".to_string()),
-            ..Default::default()
+            vscode: VsCodeConfig {
+                auto_update: true,
+                settings_path: Some("/custom/path/settings.json".to_string()),
+                ..Default::default()
+            }
         };
 
         let json = serde_json::to_string(&ide).unwrap();
         let parsed: IdeConfig = serde_json::from_str(&json).unwrap();
-        assert!(parsed.vscode_auto_update);
+        assert!(parsed.vscode.auto_update);
         assert_eq!(
-            parsed.vscode_settings_path,
+            parsed.vscode.settings_path,
             Some("/custom/path/settings.json".to_string())
         );
     }
@@ -398,9 +489,11 @@ mod tests {
             parallel_downloads: 8,
             verify_ssl: false,
             ide: IdeConfig {
-                vscode_auto_update: true,
-                vscode_set_zls_path: false,
-                vscode_settings_path: Some("/custom/path".to_string()),
+                vscode: VsCodeConfig {
+                    auto_update: true,
+                    set_zls_path: false,
+                    settings_path: Some("/custom/path".to_string()),
+                }
             },
         };
 
@@ -412,8 +505,8 @@ mod tests {
         assert!(parsed.auto_use);
         assert_eq!(parsed.parallel_downloads, 8);
         assert!(!parsed.verify_ssl);
-        assert!(parsed.ide.vscode_auto_update);
-        assert!(!parsed.ide.vscode_set_zls_path);
+        assert!(parsed.ide.vscode.auto_update);
+        assert!(!parsed.ide.vscode.set_zls_path);
     }
 
     #[test]
