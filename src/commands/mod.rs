@@ -9,12 +9,13 @@ pub mod pair;
 pub mod prune;
 pub mod restore;
 pub mod setup;
+pub mod update;
 pub mod version_use;
 pub mod zls;
 
 use std::sync::OnceLock;
 
-use crate::cli::{Commands, ConfigCommands, IdeCommands, ZlsCommands};
+use crate::cli::{Commands, ConfigCommands, IdeCommands, UpdateCommands, ZlsCommands};
 use crate::core::callbacks::InstallCallbacks;
 use crate::core::tool_manager::{ToolKind, ToolManager};
 use crate::infra::cache::CacheManager;
@@ -155,6 +156,7 @@ impl Command for Commands {
             Commands::Completion { shell } => {
                 completion::cmd_completion(shell)
             }
+            Commands::Update { command } => command.execute(ctx, json).await,
         }
     }
 }
@@ -180,5 +182,17 @@ impl Command for ConfigCommands {
 impl Command for IdeCommands {
     async fn execute(&self, ctx: &AppContext, _json: bool) -> Result<(), ZzmError> {
         ide::cmd_ide(ctx, self.clone()).await
+    }
+}
+
+// Implement Command trait for UpdateCommands
+#[async_trait::async_trait]
+impl Command for UpdateCommands {
+    async fn execute(&self, ctx: &AppContext, json: bool) -> Result<(), ZzmError> {
+        match self {
+            UpdateCommands::Self_ { check, force } => {
+                update::cmd_update_self(ctx, *check, *force, json).await
+            }
+        }
     }
 }
