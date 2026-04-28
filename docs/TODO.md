@@ -2,53 +2,15 @@
 
 ## 📋 文档信息
 
-- **版本**: v5.1.0
-- **更新日期**: 2026-04-26
+- **版本**: v6.2.0
+- **更新日期**: 2026-04-28
 - **适用版本**: zig-zls-manager v0.1.0+
-- **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [architecture-optimization-v2.md](./analyses/architecture-optimization-v2.md)
-- **当前阶段**: Phase 1 MVP + 架构优化重构 + P0/P1/P2 全部完成
-- **编译状态**: ✅ cargo clippy -D warnings 零警告
-- **测试状态**: ✅ 231/231 全部通过（214 单元 + 16 集成 + 1 文档）
+- **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [analysis.md](./workflow/analysis.md)
+- **当前阶段**: 阶段 6 - 体验优化 + P3 改进项
 
 ---
 
-## ✅ 已完成
-
-| 任务 | 描述 | 关键变更 |
-|------|------|---------|
-| T-044 | 统一 Channel 枚举 | 合并 `ZigChannel`/`ZlsChannel` → `core::channel::Channel` |
-| T-045 | 合并目标三元组解析 | 统一到 `platform::parse_target_triple()` |
-| T-046 | 合并 VersionParts 和 Version | 删除 `VersionParts`，改用 `Version::from_str` |
-| T-047 | ToolManager 泛型抽象 | 新增 `ToolManager<T: VersionProvider>`，净删除 ~400 行重复代码 |
-| T-048 | ApiCache 泛型缓存层 | 新增 `ApiCache<T>` 消除缓存逻辑重复 |
-| T-049 | 流式 SHA256 校验 | `BufReader` 流式校验，内存恒定 |
-| T-050 | ToolManager 单元测试 | +24 测试 (157→181) |
-| T-052 | Zig API serde 模型修复 | 重写适配实际 API (+6 测试) |
-| T-043 | 数字字面量可读性 | 添加下划线分隔符 |
-| T-061 | 泛型彻底化 — ToolIndexEntry | `InstalledIndex` → `HashMap<ToolKind, Vec<ToolIndexEntry>>`，消除 15+ match 分支 |
-| T-062 | 交互式 Setup Wizard | `cmd_setup_wizard()` 使用 dialoguer 交互式引导 |
-| T-063 | `zzm restore` 命令 | 新增 `ProjectManager` + `restore` 子命令 |
-| T-064 | Commands 层 OutputDispatcher | `OutputRow` trait + `output_list()` 统一调度 |
-| T-065 | ProjectManager 完整实现 | `save`/`set_zig_version`/`set_zls_version`/`resolve_zls_version`/`is_version_installed` |
-| T-066 | AppContext OnceCell 懒加载 | `PathManager` 改为 `OnceLock` 单例复用 |
-| T-067 | `zzm sync` 功能增强 | 兼容性矩阵推荐 + dry-run + LikelyCompatible 状态处理 |
-| T-068 | `zzm pair` 命令 | 手动绑定 Zig↔ZLS 版本关系，写入 .zzmrc |
-| T-070 | PostInstallHook Trait 抽象 | `VersionProvider::post_install_hook()` 默认实现，消除 `if kind == Zls` 硬编码 |
-| T-071 | 索引读取合并优化 | `install()` 3→1 次，`use_version()` 2→1 次 |
-| T-072 | 符号链接操作合并 | 4 个方法合并为 `update_version_symlinks()` + `remove_version_symlinks()` |
-| T-074 | `zzm prune` 移除旧版本 | `PrunableVersion(OutputRow)` + `batch_uninstall` + 交互确认 |
-| T-076 | `zzm doctor` 诊断增强 | 环境变量/符号链接有效性/磁盘空间/兼容性检查 |
-| #006 | 并行下载 Zig+ZLS | `download_only()` + `install_from_cache()` + `tokio::join!` |
-| #007 | install 原子性回滚 | ZLS 安装失败时回滚 Zig，保持一致性 |
-| T-025 | 集成测试 | 16 个集成测试（索引/配置/兼容性/数据结构），lib.rs 公共 API 暴露 |
-
----
-
-## 🟢 P2 - 代码质量 + 辅助功能 — ✅ 全部完成
-
----
-
-## 🔵 P3 - 体验优化 + 边缘场景
+## 🔵 P3 - 体验优化（中优先级）
 
 ### T-075: `zzm update self` 自我更新
 
@@ -60,7 +22,7 @@
   - Windows 需特殊处理（运行中二进制不可替换 → 用 shim/重命名策略）
   - `--check` 仅检查不更新，`--force` 跳过版本比较
 - **涉及文件**: `src/commands/update.rs`（新增）
-- **工作量**: 2 天 | **风险**: 中（跨平台二进制替换）
+- **工作量**: 2 天 | **风险**: 中
 
 ### T-073: ConfigManager 自动字段映射
 
@@ -73,6 +35,7 @@
 
 - **问题**: `spec.md` §2.3.3 定义但未实现
 - **方案**: 新增 `zzm completion <shell>` 子命令，使用 `clap_complete::generate()` 动态生成
+- **支持 shell**: bash/zsh/fish/powershell
 - **工作量**: 1 天 | **风险**: 低
 
 ### T-081: 清理 dead_code 标注
@@ -102,7 +65,53 @@
 
 ---
 
-## ⚪ 边缘场景 & 遗留问题
+## 🟡 架构优化（中优先级）
+
+### T-084: 命令路由重构
+
+- **问题**: main.rs 约 700 行路由逻辑过重
+- **方案**: 定义 Command trait + CommandRouter 注册分发机制
+- **设计**:
+  ```rust
+  pub trait Command: Send + Sync {
+      fn name(&self) -> &str;
+      async fn execute(&self, args: &Args) -> Result<()>;
+  }
+  ```
+- **收益**: 模块化命令实现，易于扩展
+- **工作量**: 3 天 | **风险**: 中
+
+### T-085: 缓存优化（LRU 策略）
+
+- **问题**: 缓存策略简单，未考虑缓存大小限制
+- **方案**: 实现 LRU 缓存淘汰策略，添加缓存大小配置，支持手动清理
+- **收益**: 控制磁盘占用，提升缓存命中率
+- **工作量**: 2 天 | **风险**: 低
+
+### T-086: 增量更新支持
+
+- **问题**: 每次版本切换需要重新创建符号链接
+- **方案**: 实现增量更新机制，仅更新必要的符号链接，添加更新状态跟踪
+- **收益**: 提升切换速度，减少磁盘操作
+- **工作量**: 2 天 | **风险**: 低
+
+### T-087: 延迟加载优化
+
+- **问题**: 启动时加载所有模块
+- **方案**: 按需初始化模块，使用 lazy_static 延迟加载配置，异步预热资源
+- **收益**: 减少启动时间
+- **工作量**: 1.5 天 | **风险**: 低
+
+### T-088: 进度可视化增强
+
+- **问题**: 下载进度展示不够直观
+- **方案**: 添加详细的进度条，显示下载速度和预计时间，添加动画效果
+- **收益**: 提升用户感知体验
+- **工作量**: 1 天 | **风险**: 低
+
+---
+
+## ⚪ 边缘场景 & 遗留问题（低优先级）
 
 ### #002: Windows 长路径问题
 
@@ -124,16 +133,29 @@
 
 ---
 
-## 📐 实施路线图
+## 🟣 长期规划（低优先级）
 
-```
-阶段 1 ✅ ─→ 阶段 2 ✅ ──→ 阶段 3 ✅ ──→ 阶段 4 ✅ ──→ 阶段 5 ✅ ──→ 阶段 6
-T-060 ✅      T-061 ✅       T-064 ✅       T-062 ✅       #007 ✅       T-075
-T-066 ✅      T-064 ✅       T-065 ✅       T-063 ✅       T-025 ✅       P3 项
-(输出         (泛型         (Commands      (Wizard       (原子性+       (自我更新+
- 解耦+        彻底化+       数据抽象+      +restore)     集成测试)     体验优化)
- OnceCell)   Commands)    Project)
-```
+### GUI 前端
+
+- **目标**: 提供图形化界面
+- **方案**: 使用 ratatui 实现 Terminal UI，或开发 Web Dashboard
+- **工作量**: 30 天 | **风险**: 高
+
+### 插件系统
+
+- **目标**: 支持扩展功能
+- **方案**: 设计插件 API，定义 Hook 点和事件系统，实现沙箱执行
+- **工作量**: 30 天 | **风险**: 高
+
+### 团队协作功能
+
+- **目标**: 支持团队共享版本配置
+- **方案**: 锁文件支持（zzm.lock），团队配置模板，CI/CD Docker 镜像
+- **工作量**: 20 天 | **风险**: 中
+
+---
+
+## 📐 实施路线图
 
 | 阶段 | 交付内容 | 状态 |
 |------|---------|------|
@@ -142,21 +164,14 @@ T-066 ✅      T-064 ✅       T-065 ✅       T-063 ✅       T-025 ✅       P
 | **阶段 3** | T-065 ProjectManager 完整实现 | ✅ 完成 |
 | **阶段 4** | T-062 Interactive Wizard + T-063 restore 命令 | ✅ 完成 |
 | **阶段 5** | #007 install 原子性 + T-025 集成测试 | ✅ 完成 |
-| **阶段 6** | T-075 自我更新 + P3 体验优化项 | ⬜ 待规划 |
+| **阶段 6** | P3 体验优化 + 架构优化项 | 🟡 进行中 |
 
 ---
 
-## � 变更日志
+## 📝 变更日志
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
-| 2026-04-26 | v5.2.0 | 完成 #007 install 原子性回滚 + T-025 集成测试（16个），新增 lib.rs 公共 API 暴露，P2 全部完成 |
-| 2026-04-26 | v5.1.0 | 精简 TODO：移除已完成项详细描述，保留表格；移除重复路线图；P2 仅剩 #007 + T-025 |
-| 2026-04-26 | v5.0.0 | 完成 #006 并行下载，重新规划：#007 提升为 P2，T-075 降为 P3，新增阶段 6 |
-| 2026-04-26 | v4.5.0 | 完成 T-070/T-071/T-072/T-074/T-076，P2 部分完成 |
-| 2026-04-26 | v4.3.0 | 完成 T-062 Setup Wizard + T-063 restore 命令，P0 全部完成 |
-| 2026-04-26 | v4.2.0 | 完成 T-061 泛型彻底化：ToolIndexEntry + ToolExtraData 统一数据结构 |
-| 2026-04-26 | v4.0.0 | 基于 architecture-optimization-v2.md 全面重写，新增 T-060~T-083 |
-| 2026-04-25 | v3.2.0 | 修复 T-052 Zig API serde 模型不匹配 |
-| 2026-04-25 | v3.1.0 | 完成 T-050 ToolManager 单元测试(+24)、T-043 数字字面量可读性 |
-| 2026-04-25 | v3.0.0 | 完成 T-044~T-049 架构优化重构 |
+| 2026-04-28 | v6.2.0 | 根据 workflow/analysis.md 更新，新增架构优化和长期规划项 |
+| 2026-04-28 | v6.1.0 | 移除已完成内容，已完成项迁移至 ROADMAP.md 和 MEMORY.md |
+| 2026-04-28 | v6.0.0 | 根据 workflow 文档重新规划，阶段 6 启动 |
