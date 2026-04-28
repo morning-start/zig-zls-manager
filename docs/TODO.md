@@ -2,13 +2,11 @@
 
 ## 📋 文档信息
 
-- **版本**: v5.1.0
-- **更新日期**: 2026-04-26
+- **版本**: v6.0.0
+- **更新日期**: 2026-04-28
 - **适用版本**: zig-zls-manager v0.1.0+
-- **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [architecture-optimization-v2.md](./analyses/architecture-optimization-v2.md)
-- **当前阶段**: Phase 1 MVP + 架构优化重构 + P0/P1/P2 全部完成
-- **编译状态**: ✅ cargo clippy -D warnings 零警告
-- **测试状态**: ✅ 231/231 全部通过（214 单元 + 16 集成 + 1 文档）
+- **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [analysis.md](../workflow/analysis.md)
+- **当前阶段**: 阶段 6 - 自我更新 + P3 体验优化
 
 ---
 
@@ -25,26 +23,22 @@
 | T-050 | ToolManager 单元测试 | +24 测试 (157→181) |
 | T-052 | Zig API serde 模型修复 | 重写适配实际 API (+6 测试) |
 | T-043 | 数字字面量可读性 | 添加下划线分隔符 |
-| T-061 | 泛型彻底化 — ToolIndexEntry | `InstalledIndex` → `HashMap<ToolKind, Vec<ToolIndexEntry>>`，消除 15+ match 分支 |
+| T-061 | 泛型彻底化 — ToolIndexEntry | `InstalledIndex` → `HashMap<ToolKind, Vec<ToolIndexEntry>>` |
 | T-062 | 交互式 Setup Wizard | `cmd_setup_wizard()` 使用 dialoguer 交互式引导 |
 | T-063 | `zzm restore` 命令 | 新增 `ProjectManager` + `restore` 子命令 |
 | T-064 | Commands 层 OutputDispatcher | `OutputRow` trait + `output_list()` 统一调度 |
-| T-065 | ProjectManager 完整实现 | `save`/`set_zig_version`/`set_zls_version`/`resolve_zls_version`/`is_version_installed` |
+| T-065 | ProjectManager 完整实现 | `save`/`set_zig_version`/`set_zls_version`/`resolve_zls_version` |
 | T-066 | AppContext OnceCell 懒加载 | `PathManager` 改为 `OnceLock` 单例复用 |
 | T-067 | `zzm sync` 功能增强 | 兼容性矩阵推荐 + dry-run + LikelyCompatible 状态处理 |
 | T-068 | `zzm pair` 命令 | 手动绑定 Zig↔ZLS 版本关系，写入 .zzmrc |
-| T-070 | PostInstallHook Trait 抽象 | `VersionProvider::post_install_hook()` 默认实现，消除 `if kind == Zls` 硬编码 |
+| T-070 | PostInstallHook Trait 抽象 | `VersionProvider::post_install_hook()` 默认实现 |
 | T-071 | 索引读取合并优化 | `install()` 3→1 次，`use_version()` 2→1 次 |
 | T-072 | 符号链接操作合并 | 4 个方法合并为 `update_version_symlinks()` + `remove_version_symlinks()` |
 | T-074 | `zzm prune` 移除旧版本 | `PrunableVersion(OutputRow)` + `batch_uninstall` + 交互确认 |
 | T-076 | `zzm doctor` 诊断增强 | 环境变量/符号链接有效性/磁盘空间/兼容性检查 |
 | #006 | 并行下载 Zig+ZLS | `download_only()` + `install_from_cache()` + `tokio::join!` |
 | #007 | install 原子性回滚 | ZLS 安装失败时回滚 Zig，保持一致性 |
-| T-025 | 集成测试 | 16 个集成测试（索引/配置/兼容性/数据结构），lib.rs 公共 API 暴露 |
-
----
-
-## 🟢 P2 - 代码质量 + 辅助功能 — ✅ 全部完成
+| T-025 | 集成测试 | 16 个集成测试（索引/配置/兼容性/数据结构） |
 
 ---
 
@@ -60,7 +54,7 @@
   - Windows 需特殊处理（运行中二进制不可替换 → 用 shim/重命名策略）
   - `--check` 仅检查不更新，`--force` 跳过版本比较
 - **涉及文件**: `src/commands/update.rs`（新增）
-- **工作量**: 2 天 | **风险**: 中（跨平台二进制替换）
+- **工作量**: 2 天 | **风险**: 中
 
 ### T-073: ConfigManager 自动字段映射
 
@@ -127,7 +121,7 @@
 ## 📐 实施路线图
 
 ```
-阶段 1 ✅ ─→ 阶段 2 ✅ ──→ 阶段 3 ✅ ──→ 阶段 4 ✅ ──→ 阶段 5 ✅ ──→ 阶段 6
+阶段 1 ✅ ─→ 阶段 2 ✅ ──→ 阶段 3 ✅ ──→ 阶段 4 ✅ ──→ 阶段 5 ✅ ──→ 阶段 6 🟡
 T-060 ✅      T-061 ✅       T-064 ✅       T-062 ✅       #007 ✅       T-075
 T-066 ✅      T-064 ✅       T-065 ✅       T-063 ✅       T-025 ✅       P3 项
 (输出         (泛型         (Commands      (Wizard       (原子性+       (自我更新+
@@ -142,21 +136,19 @@ T-066 ✅      T-064 ✅       T-065 ✅       T-063 ✅       T-025 ✅       P
 | **阶段 3** | T-065 ProjectManager 完整实现 | ✅ 完成 |
 | **阶段 4** | T-062 Interactive Wizard + T-063 restore 命令 | ✅ 完成 |
 | **阶段 5** | #007 install 原子性 + T-025 集成测试 | ✅ 完成 |
-| **阶段 6** | T-075 自我更新 + P3 体验优化项 | ⬜ 待规划 |
+| **阶段 6** | T-075 自我更新 + P3 体验优化项 | 🟡 进行中 |
 
 ---
 
-## � 变更日志
+## 📝 变更日志
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
-| 2026-04-26 | v5.2.0 | 完成 #007 install 原子性回滚 + T-025 集成测试（16个），新增 lib.rs 公共 API 暴露，P2 全部完成 |
-| 2026-04-26 | v5.1.0 | 精简 TODO：移除已完成项详细描述，保留表格；移除重复路线图；P2 仅剩 #007 + T-025 |
-| 2026-04-26 | v5.0.0 | 完成 #006 并行下载，重新规划：#007 提升为 P2，T-075 降为 P3，新增阶段 6 |
-| 2026-04-26 | v4.5.0 | 完成 T-070/T-071/T-072/T-074/T-076，P2 部分完成 |
-| 2026-04-26 | v4.3.0 | 完成 T-062 Setup Wizard + T-063 restore 命令，P0 全部完成 |
-| 2026-04-26 | v4.2.0 | 完成 T-061 泛型彻底化：ToolIndexEntry + ToolExtraData 统一数据结构 |
-| 2026-04-26 | v4.0.0 | 基于 architecture-optimization-v2.md 全面重写，新增 T-060~T-083 |
-| 2026-04-25 | v3.2.0 | 修复 T-052 Zig API serde 模型不匹配 |
-| 2026-04-25 | v3.1.0 | 完成 T-050 ToolManager 单元测试(+24)、T-043 数字字面量可读性 |
-| 2026-04-25 | v3.0.0 | 完成 T-044~T-049 架构优化重构 |
+| 2026-04-28 | v6.0.0 | 根据 workflow 文档重新规划，阶段 6 启动 |
+| 2026-04-26 | v5.2.0 | 完成 #007 install 原子性回滚 + T-025 集成测试，P2 全部完成 |
+| 2026-04-26 | v5.1.0 | 精简 TODO：移除已完成项详细描述 |
+| 2026-04-26 | v5.0.0 | 完成 #006 并行下载，重新规划优先级 |
+| 2026-04-26 | v4.5.0 | 完成 T-070/T-071/T-072/T-074/T-076 |
+| 2026-04-26 | v4.3.0 | 完成 T-062 Setup Wizard + T-063 restore 命令 |
+| 2026-04-26 | v4.2.0 | 完成 T-061 泛型彻底化 |
+| 2026-04-26 | v4.0.0 | 基于 architecture-optimization-v2.md 全面重写 |
