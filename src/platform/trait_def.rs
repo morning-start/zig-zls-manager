@@ -151,13 +151,20 @@ pub trait PlatformTrait: Send + Sync {
 
 /// 运行时平台检测，返回当前平台的适配器
 pub fn detect_platform() -> Box<dyn PlatformTrait> {
-    if cfg!(target_os = "windows") {
+    #[cfg(target_os = "windows")]
+    {
         Box::new(super::windows::WindowsPlatform)
-    } else if cfg!(target_os = "macos") {
+    }
+    #[cfg(target_os = "macos")]
+    {
         Box::new(super::macos::MacOSPlatform)
-    } else {
+    }
+    #[cfg(target_os = "linux")]
+    {
         Box::new(super::linux::LinuxPlatform)
     }
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    compile_error!("不支持的平台");
 }
 
 /// 获取当前平台的目标三元组标识（用于下载匹配）

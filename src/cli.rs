@@ -215,7 +215,7 @@ pub enum Commands {
     },
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub enum ZlsCommands {
     /// 安装指定版本的 ZLS
     Install {
@@ -262,7 +262,7 @@ pub enum ZlsCommands {
     Current,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub enum ConfigCommands {
     /// 列出所有配置项
     List,
@@ -286,7 +286,7 @@ pub enum ConfigCommands {
     Edit,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Clone)]
 pub enum IdeCommands {
     /// 生成 IDE 配置文件
     Config {

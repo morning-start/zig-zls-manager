@@ -116,6 +116,13 @@ impl FromStr for Version {
 pub fn resolve_version(input: &str) -> std::result::Result<String, ZzmError> {
     let input = input.trim();
 
+    // 快速检查不合法的格式
+    if input.is_empty() || input.ends_with('.') {
+        return Err(ZzmError::InvalidVersion {
+            version: input.to_string(),
+        });
+    }
+
     match input {
         "master" | "nightly" | "stable" | "latest" => Ok(input.to_string()),
         _ => {
@@ -126,6 +133,7 @@ pub fn resolve_version(input: &str) -> std::result::Result<String, ZzmError> {
                     Ok(input.to_string())
                 }
             } else if input.starts_with('.') {
+                // 处理点前缀，如 ".13" 或 ".13.1"
                 let ver = format!("0{input}");
                 resolve_version(&ver)
             } else {
@@ -286,6 +294,22 @@ mod tests {
         assert!(resolve_version("abc").is_err());
         assert!(resolve_version("").is_err());
         assert!(resolve_version("0.").is_err());
+        assert!(resolve_version("123.").is_err());
+        assert!(resolve_version(".13.").is_err());
+    }
+
+    #[test]
+    fn test_resolve_version_edge_cases() {
+        // 测试 "0." 这样的输入现在应该正确地被拒绝
+        assert!(resolve_version("0.").is_err());
+        assert!(resolve_version("123.").is_err());
+        assert!(resolve_version(".").is_err());
+        
+        // 但这些应该正常工作
+        assert_eq!(resolve_version("0.13").unwrap(), "0.13.0");
+        assert_eq!(resolve_version(".13").unwrap(), "0.13.0");
+        assert_eq!(resolve_version("1.2").unwrap(), "1.2.0");
+        assert_eq!(resolve_version(".12.3").unwrap(), "0.12.3");
     }
 
     #[test]

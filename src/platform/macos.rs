@@ -1,3 +1,5 @@
+#![cfg(target_os = "macos")]
+
 use std::path::{Path, PathBuf};
 
 use super::trait_def::PlatformTrait;
@@ -6,7 +8,6 @@ use crate::utils::error::ZzmError;
 /// macOS 平台适配器
 pub struct MacOSPlatform;
 
-#[cfg(target_os = "macos")]
 impl PlatformTrait for MacOSPlatform {
     fn clone_box(&self) -> Box<dyn PlatformTrait> {
         Box::new(MacOSPlatform)
@@ -62,39 +63,5 @@ impl PlatformTrait for MacOSPlatform {
 
     fn is_admin(&self) -> bool {
         std::env::var("USER").map(|u| u == "root").unwrap_or(false)
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-impl PlatformTrait for MacOSPlatform {
-    fn clone_box(&self) -> Box<dyn PlatformTrait> {
-        Box::new(MacOSPlatform)
-    }
-
-    fn name(&self) -> &'static str {
-        "macos"
-    }
-    fn platform_default_dir(&self) -> PathBuf {
-        PathBuf::from("/.zzm")
-    }
-    fn create_symlink(&self, _original: &Path, _link: &Path) -> Result<(), ZzmError> {
-        Err(ZzmError::UnsupportedPlatform {
-            platform: "macos".to_string(),
-        })
-    }
-    fn remove_symlink(&self, _link: &Path) -> Result<(), ZzmError> {
-        Ok(())
-    }
-    fn shell_config_files(&self) -> Vec<PathBuf> {
-        vec![]
-    }
-    fn zig_binary_name(&self) -> &'static str {
-        "zig"
-    }
-    fn zls_binary_name(&self) -> &'static str {
-        "zls"
-    }
-    fn is_admin(&self) -> bool {
-        false
     }
 }
