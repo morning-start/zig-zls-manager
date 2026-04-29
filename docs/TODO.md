@@ -2,11 +2,11 @@
 
 ## 📋 文档信息
 
-- **版本**: v6.2.0
+- **版本**: v6.3.0
 - **更新日期**: 2026-04-28
 - **适用版本**: zig-zls-manager v0.1.0+
 - **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [analysis.md](./workflow/analysis.md)
-- **当前阶段**: 阶段 6 - 体验优化 + P3 改进项
+- **当前阶段**: 阶段 6 - 体验优化 + P3 改进项（阶段 7-8 架构核心优化待开始）
 
 ---
 
@@ -67,6 +67,66 @@
 
 ## 🟡 架构优化（中优先级）
 
+### T-089: 泛型抽象优化（高优先级）
+
+- **问题**: ZigManager/ZlsManager 代码重复度约 65%，维护成本高
+- **方案**: 使用泛型抽象统一管理逻辑
+- **设计**:
+  ```rust
+  pub struct ToolManager<T: VersionProvider> {
+      api_client: T,
+  }
+  impl<T: VersionProvider> ToolManager<T> {
+      pub async fn install(&self, version: &str) -> Result<()> { ... }
+  }
+  pub type ZigManager = ToolManager<ZigApiClient>;
+  pub type ZlsManager = ToolManager<ZlsApiClient>;
+  ```
+- **收益**: 减少代码重复 50%+，提高可维护性
+- **涉及文件**: `src/core/tool_manager.rs`
+- **工作量**: 3 天 | **风险**: 中
+
+### T-090: 依赖注入重构（高优先级）
+
+- **问题**: Core 层直接创建 Infra 实例，无法注入 mock 依赖，测试困难
+- **方案**: 使用构造函数注入依赖
+- **设计**:
+  ```rust
+  pub struct ToolManager {
+      downloader: Box<dyn Downloader>,
+      path_manager: Box<dyn PathManager>,
+  }
+  impl ToolManager {
+      pub fn new(downloader: Box<dyn Downloader>, path_manager: Box<dyn PathManager>) -> Self { ... }
+  }
+  ```
+- **收益**: 提高可测试性，支持依赖替换
+- **涉及文件**: `src/core/tool_manager.rs`, `src/infra/downloader.rs`
+- **工作量**: 2 天 | **风险**: 中
+
+### T-091: 事务性安装与错误恢复（高优先级）
+
+- **问题**: 安装失败时清理不完整，可能残留损坏状态
+- **方案**: 实现事务性安装机制
+  - 安装前创建回滚点
+  - 记录操作日志便于恢复
+  - 失败时自动回滚到之前状态
+- **收益**: 提升系统可靠性，避免损坏状态
+- **涉及文件**: `src/commands/install.rs`, `src/core/tool_manager.rs`
+- **工作量**: 3 天 | **风险**: 中
+
+### T-092: 健康检查命令
+
+- **问题**: 缺少运行状态监控，无法提前发现潜在问题
+- **方案**: 新增 `zzm doctor` 命令
+  - 检测符号链接完整性
+  - 验证版本一致性
+  - 检查 PATH 配置
+  - 验证已安装版本的校验和
+- **收益**: 提前发现潜在问题，提升用户信任
+- **涉及文件**: `src/commands/doctor.rs`（新增）
+- **工作量**: 2 天 | **风险**: 低
+
 ### T-084: 命令路由重构
 
 - **问题**: main.rs 约 700 行路由逻辑过重
@@ -107,6 +167,21 @@
 - **问题**: 下载进度展示不够直观
 - **方案**: 添加详细的进度条，显示下载速度和预计时间，添加动画效果
 - **收益**: 提升用户感知体验
+- **工作量**: 1 天 | **风险**: 低
+
+### T-093: 并行下载优化
+
+- **问题**: 安装时 Zig 和 ZLS 串行下载，总下载时间较长
+- **方案**: 使用 `tokio::join!` 并行下载
+- **设计**:
+  ```rust
+  let (zig_result, zls_result) = tokio::join!(
+      downloader.download(zig_url),
+      downloader.download(zls_url)
+  );
+  ```
+- **收益**: 减少总下载时间约 40%
+- **涉及文件**: `src/commands/install.rs`
 - **工作量**: 1 天 | **风险**: 低
 
 ---
@@ -165,6 +240,8 @@
 | **阶段 4** | T-062 Interactive Wizard + T-063 restore 命令 | ✅ 完成 |
 | **阶段 5** | #007 install 原子性 + T-025 集成测试 | ✅ 完成 |
 | **阶段 6** | P3 体验优化 + 架构优化项 | 🟡 进行中 |
+| **阶段 7** | T-089 泛型抽象 + T-090 依赖注入 + T-091 事务性安装 | ⏳ 待开始 |
+| **阶段 8** | T-092 健康检查 + T-093 并行下载 | ⏳ 待开始 |
 
 ---
 
@@ -172,6 +249,7 @@
 
 | 日期 | 版本 | 修改内容 |
 |-----|------|---------|
+| 2026-04-28 | v6.3.0 | 补充架构优化高优先级项：T-089泛型抽象、T-090依赖注入、T-091事务性安装、T-092健康检查、T-093并行下载 |
 | 2026-04-28 | v6.2.0 | 根据 workflow/analysis.md 更新，新增架构优化和长期规划项 |
 | 2026-04-28 | v6.1.0 | 移除已完成内容，已完成项迁移至 ROADMAP.md 和 MEMORY.md |
 | 2026-04-28 | v6.0.0 | 根据 workflow 文档重新规划，阶段 6 启动 |
