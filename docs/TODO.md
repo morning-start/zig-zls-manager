@@ -2,254 +2,85 @@
 
 ## 📋 文档信息
 
-- **版本**: v6.3.0
-- **更新日期**: 2026-04-28
-- **适用版本**: zig-zls-manager v0.1.0+
-- **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md) | [analysis.md](./workflow/analysis.md)
-- **当前阶段**: 阶段 6 - 体验优化 + P3 改进项（阶段 7-8 架构核心优化待开始）
+- **版本**: v7.0.0
+- **更新日期**: 2026-04-29
+- **适用版本**: zig-zls-manager v1.2.1
+- **关联文档**: [ROADMAP.md](./ROADMAP.md) | [architecture.md](./architecture.md)
+- **当前阶段**: 阶段 7 - 体验优化收尾
 
 ---
 
-## 🔵 P3 - 体验优化（中优先级）
+## 🔵 待实现功能
 
-### T-075: `zzm update self` 自我更新
+### 高优先级
 
-- **问题**: `spec.md` §2.3.2 定义但未实现，用户需手动下载新版本
-- **方案**: 从 GitHub Releases 检测新版本 → 下载替换当前二进制
-- **实现策略**:
-  - `zzm update self`: 检查 GitHub Releases 最新版本
-  - 下载新二进制到临时文件 → 原子替换（rename）
-  - Windows 需特殊处理（运行中二进制不可替换 → 用 shim/重命名策略）
-  - `--check` 仅检查不更新，`--force` 跳过版本比较
-- **涉及文件**: `src/commands/update.rs`（新增）
-- **工作量**: 2 天 | **风险**: 中
+| 任务 | 描述 | 涉及文件 |
+|------|------|----------|
+| **`zzm update self` 自我更新** | 从 GitHub Releases 检测并安装最新版本 | `src/commands/update.rs` |
+| **ConfigManager 自动字段映射** | 使用 serde 自动反射替代手动 `match` 映射 | `src/core/config.rs` |
 
-### T-073: ConfigManager 自动字段映射
+### 中优先级
 
-- **问题**: `get()`/`set()` 使用 `match` 逐字段映射，新增配置项需改 3 处
-- **方案**: serde 自动反射或宏驱动映射
-- **涉及文件**: `src/core/config.rs`
-- **工作量**: 2 天 | **风险**: 中
+| 任务 | 描述 | 涉及文件 |
+|------|------|----------|
+| **兼容性矩阵远程更新** | 从 GitHub 拉取最新兼容性规则并缓存 | `src/core/compatibility.rs` |
+| **IDE 配置自动检测** | 检测当前 IDE 是否安装 + 配置是否生效 | `src/commands/ide.rs` |
 
-### T-080: Shell 自动补全生成
+### 低优先级
 
-- **问题**: `spec.md` §2.3.3 定义但未实现
-- **方案**: 新增 `zzm completion <shell>` 子命令，使用 `clap_complete::generate()` 动态生成
-- **支持 shell**: bash/zsh/fish/powershell
-- **工作量**: 1 天 | **风险**: 低
-
-### T-081: 清理 dead_code 标注
-
-- **问题**: 多处 `#[allow(dead_code)]` 遮盖了未实现的功能
-- **方案**: 系统性审查——实现、删除或用 `cfg(feature)` 控制
-- **涉及文件**: `src/platform/trait_def.rs`, `src/core/tool_manager.rs`, `src/infra/downloader.rs` 等
-- **工作量**: 1 天
-
-### T-082: 兼容性矩阵远程更新
-
-- **问题**: 兼容性规则硬编码在本地，Zig/ZLS 新版本发布后需手动更新代码
-- **方案**: 从 GitHub 拉取最新兼容性规则并缓存（TTL: 24h），远程不可用时回退到内置规则
-- **工作量**: 2 天 | **风险**: 低
-
-### T-083: IDE 配置自动检测
-
-- **问题**: 仅支持生成配置，未检测当前 IDE 是否安装 + 配置是否生效
-- **方案**: 扫描 IDE 安装路径 + 验证配置文件内容
-- **工作量**: 1.5 天
-
-### T-042: IdeConfig 结构体重构
-
-- **问题**: `IdeConfig` 所有字段都有 `vscode` 前缀，clippy 建议拆分
-- **方案**: 拆分为嵌套结构体 `VsCodeConfig`
-- **涉及文件**: `src/core/config.rs`
+| 任务 | 描述 | 涉及文件 |
+|------|------|----------|
+| **清理 dead_code 标注** | 系统性审查：要么实现，要么删除 | `src/platform/trait_def.rs` 等 |
+| **IdeConfig 结构体重构** | 拆分为嵌套结构体 `VsCodeConfig` | `src/core/config.rs` |
 
 ---
 
-## 🟡 架构优化（中优先级）
+## 🟡 边缘场景优化
 
-### T-089: 泛型抽象优化（高优先级）
-
-- **问题**: ZigManager/ZlsManager 代码重复度约 65%，维护成本高
-- **方案**: 使用泛型抽象统一管理逻辑
-- **设计**:
-  ```rust
-  pub struct ToolManager<T: VersionProvider> {
-      api_client: T,
-  }
-  impl<T: VersionProvider> ToolManager<T> {
-      pub async fn install(&self, version: &str) -> Result<()> { ... }
-  }
-  pub type ZigManager = ToolManager<ZigApiClient>;
-  pub type ZlsManager = ToolManager<ZlsApiClient>;
-  ```
-- **收益**: 减少代码重复 50%+，提高可维护性
-- **涉及文件**: `src/core/tool_manager.rs`
-- **工作量**: 3 天 | **风险**: 中
-
-### T-090: 依赖注入重构（高优先级）
-
-- **问题**: Core 层直接创建 Infra 实例，无法注入 mock 依赖，测试困难
-- **方案**: 使用构造函数注入依赖
-- **设计**:
-  ```rust
-  pub struct ToolManager {
-      downloader: Box<dyn Downloader>,
-      path_manager: Box<dyn PathManager>,
-  }
-  impl ToolManager {
-      pub fn new(downloader: Box<dyn Downloader>, path_manager: Box<dyn PathManager>) -> Self { ... }
-  }
-  ```
-- **收益**: 提高可测试性，支持依赖替换
-- **涉及文件**: `src/core/tool_manager.rs`, `src/infra/downloader.rs`
-- **工作量**: 2 天 | **风险**: 中
-
-### T-091: 事务性安装与错误恢复（高优先级）
-
-- **问题**: 安装失败时清理不完整，可能残留损坏状态
-- **方案**: 实现事务性安装机制
-  - 安装前创建回滚点
-  - 记录操作日志便于恢复
-  - 失败时自动回滚到之前状态
-- **收益**: 提升系统可靠性，避免损坏状态
-- **涉及文件**: `src/commands/install.rs`, `src/core/tool_manager.rs`
-- **工作量**: 3 天 | **风险**: 中
-
-### T-092: 健康检查命令
-
-- **问题**: 缺少运行状态监控，无法提前发现潜在问题
-- **方案**: 新增 `zzm doctor` 命令
-  - 检测符号链接完整性
-  - 验证版本一致性
-  - 检查 PATH 配置
-  - 验证已安装版本的校验和
-- **收益**: 提前发现潜在问题，提升用户信任
-- **涉及文件**: `src/commands/doctor.rs`（新增）
-- **工作量**: 2 天 | **风险**: 低
-
-### T-084: 命令路由重构
-
-- **问题**: main.rs 约 700 行路由逻辑过重
-- **方案**: 定义 Command trait + CommandRouter 注册分发机制
-- **设计**:
-  ```rust
-  pub trait Command: Send + Sync {
-      fn name(&self) -> &str;
-      async fn execute(&self, args: &Args) -> Result<()>;
-  }
-  ```
-- **收益**: 模块化命令实现，易于扩展
-- **工作量**: 3 天 | **风险**: 中
-
-### T-085: 缓存优化（LRU 策略）
-
-- **问题**: 缓存策略简单，未考虑缓存大小限制
-- **方案**: 实现 LRU 缓存淘汰策略，添加缓存大小配置，支持手动清理
-- **收益**: 控制磁盘占用，提升缓存命中率
-- **工作量**: 2 天 | **风险**: 低
-
-### T-086: 增量更新支持
-
-- **问题**: 每次版本切换需要重新创建符号链接
-- **方案**: 实现增量更新机制，仅更新必要的符号链接，添加更新状态跟踪
-- **收益**: 提升切换速度，减少磁盘操作
-- **工作量**: 2 天 | **风险**: 低
-
-### T-087: 延迟加载优化
-
-- **问题**: 启动时加载所有模块
-- **方案**: 按需初始化模块，使用 lazy_static 延迟加载配置，异步预热资源
-- **收益**: 减少启动时间
-- **工作量**: 1.5 天 | **风险**: 低
-
-### T-088: 进度可视化增强
-
-- **问题**: 下载进度展示不够直观
-- **方案**: 添加详细的进度条，显示下载速度和预计时间，添加动画效果
-- **收益**: 提升用户感知体验
-- **工作量**: 1 天 | **风险**: 低
-
-### T-093: 并行下载优化
-
-- **问题**: 安装时 Zig 和 ZLS 串行下载，总下载时间较长
-- **方案**: 使用 `tokio::join!` 并行下载
-- **设计**:
-  ```rust
-  let (zig_result, zls_result) = tokio::join!(
-      downloader.download(zig_url),
-      downloader.download(zls_url)
-  );
-  ```
-- **收益**: 减少总下载时间约 40%
-- **涉及文件**: `src/commands/install.rs`
-- **工作量**: 1 天 | **风险**: 低
+| 问题 | 描述 | 优先级 |
+|------|------|--------|
+| **Windows 长路径** | 使用 `\\?\` 前缀扩展路径限制 | 低 |
+| **代理服务器** | `reqwest::Client` 启用系统代理 | 中 |
+| **离线模式** | 检测网络可用性，仅使用本地缓存 | 低 |
 
 ---
 
-## ⚪ 边缘场景 & 遗留问题（低优先级）
+## 📊 已完成功能总结
 
-### #002: Windows 长路径问题
+### Phase 1 - MVP (v0.1.0) ✅
+- ✅ 核心 Zig 版本管理（install/uninstall/list/use/current）
+- ✅ ZLS 基础管理（附属模式）
+- ✅ VS Code 集成
+- ✅ 配置管理
+- ✅ 平台适配（Windows/macOS/Linux）
 
-- **问题**: Windows MAX_PATH (260) 限制，深层目录可能超限
-- **方案**: 使用 `\\?\` 前缀扩展路径限制
-- **优先级**: 低
+### Phase 2 - 增强版 (v0.2.0) ✅
+- ✅ **独立 ZLS 管理** (`zzm zls install/use/list/uninstall`)
+- ✅ **兼容性矩阵**（内置规则 + `zzm sync`）
+- ✅ **项目级配置**（`.zzmrc` + `zzm pair` + `zzm restore`）
+- ✅ **扩展 IDE 集成**（Neovim/Helix + `zzm ide check/doctor`）
+- ✅ **交互式 Setup Wizard** (`zzm setup --wizard`)
+- ✅ **Shell 自动补全** (`zzm completion`)
+- ✅ **`zzm prune` 移除旧版本**
+- ✅ **`zzm doctor` 诊断**
+- ✅ **`zzm clean` 缓存清理**
 
-### #003: 代理服务器支持
-
-- **问题**: `reqwest::Client` 未读取 HTTP_PROXY/HTTPS_PROXY 环境变量
-- **方案**: 使用 `reqwest::ClientBuilder::default_proxy(true)` 启用系统代理
-- **优先级**: 中 | **工作量**: 0.5 天
-
-### #004: 离线模式支持
-
-- **问题**: 无网络时命令仍尝试网络请求
-- **方案**: 检测网络可用性，离线时跳过远程请求，仅使用本地缓存
-- **优先级**: 低
-
----
-
-## 🟣 长期规划（低优先级）
-
-### GUI 前端
-
-- **目标**: 提供图形化界面
-- **方案**: 使用 ratatui 实现 Terminal UI，或开发 Web Dashboard
-- **工作量**: 30 天 | **风险**: 高
-
-### 插件系统
-
-- **目标**: 支持扩展功能
-- **方案**: 设计插件 API，定义 Hook 点和事件系统，实现沙箱执行
-- **工作量**: 30 天 | **风险**: 高
-
-### 团队协作功能
-
-- **目标**: 支持团队共享版本配置
-- **方案**: 锁文件支持（zzm.lock），团队配置模板，CI/CD Docker 镜像
-- **工作量**: 20 天 | **风险**: 中
-
----
-
-## 📐 实施路线图
-
-| 阶段 | 交付内容 | 状态 |
-|------|---------|------|
-| **阶段 1** | T-060 Core 层输出解耦 + T-066 OnceCell | ✅ 完成 |
-| **阶段 2** | T-061 泛型彻底化 + T-064 Commands 数据抽象 | ✅ 完成 |
-| **阶段 3** | T-065 ProjectManager 完整实现 | ✅ 完成 |
-| **阶段 4** | T-062 Interactive Wizard + T-063 restore 命令 | ✅ 完成 |
-| **阶段 5** | #007 install 原子性 + T-025 集成测试 | ✅ 完成 |
-| **阶段 6** | P3 体验优化 + 架构优化项 | 🟡 进行中 |
-| **阶段 7** | T-089 泛型抽象 + T-090 依赖注入 + T-091 事务性安装 | ⏳ 待开始 |
-| **阶段 8** | T-092 健康检查 + T-093 并行下载 | ⏳ 待开始 |
+### Phase 2.5 - 稳定版 (v0.2.5) ✅
+- ✅ **泛型彻底化**（`ToolManager` + `ToolIndexEntry` 统一数据结构）
+- ✅ **Core 层输出解耦**（`InstallCallbacks` 回调方案）
+- ✅ **Commands 层数据抽象**（`OutputDispatcher`）
+- ✅ **AppContext OnceCell 懒加载**
+- ✅ **并行下载优化**（`tokio::join!`）
+- ✅ **原子性安装与回滚**
+- ✅ **性能优化**（启动 < 100ms）
+- ✅ **集成测试**（231 个测试全部通过）
 
 ---
 
 ## 📝 变更日志
 
 | 日期 | 版本 | 修改内容 |
-|-----|------|---------|
-| 2026-04-28 | v6.3.0 | 补充架构优化高优先级项：T-089泛型抽象、T-090依赖注入、T-091事务性安装、T-092健康检查、T-093并行下载 |
-| 2026-04-28 | v6.2.0 | 根据 workflow/analysis.md 更新，新增架构优化和长期规划项 |
-| 2026-04-28 | v6.1.0 | 移除已完成内容，已完成项迁移至 ROADMAP.md 和 MEMORY.md |
-| 2026-04-28 | v6.0.0 | 根据 workflow 文档重新规划，阶段 6 启动 |
+|------|------|---------|
+| 2026-04-29 | v7.0.0 | 清理已完成功能，仅保留真实待办，更新到 v1.2.1 版本状态 |
+| 2026-04-28 | v6.3.0 | 补充架构优化高优先级项 |
+| 2026-04-28 | v6.2.0 | 根据 workflow/analysis.md 更新 |
